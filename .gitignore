@@ -1,0 +1,13 @@
+*.pyc
+.DS_Store
+*.log
+*.aux
+*.bbl
+*.blg
+robust*.pdf
+*.synctex.gz
+*.pickle
+*.png
+.vscode
+*.fls
+*.fdb_latexmk
