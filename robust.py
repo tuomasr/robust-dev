@@ -1,174 +1,285 @@
+# Solve robust optimization problem for power markets.
+# Master problem and subproblem as well as input data are defined in their respective files.
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import argparse
+
 import numpy as np
+import matplotlib.pyplot as plt
 
-from subproblem import subproblem, set_subproblem_objective, get_uncertain_variables, \
-	get_rounded_subproblem_objective_value
-from master_problem import master_problem, augment_master_problem, get_investment_cost
-from common_data import nodes, candidate_units, candidate_lines
+plt.switch_backend("agg")  # Enable plotting without a monitor.
 
-# Configure Gurobi.
-enable_custom_configuration = False
+from common_data import (
+    scenarios,
+    years,
+    hours,
+    nodes,
+    units,
+    candidate_units,
+    candidate_lines,
+    G_ramp_max,
+    G_ramp_min,
+)
+from helpers import (
+    compute_objective_gap,
+    concatenate_to_uncertain_variables_array,
+    Timer,
+)
+from master_problem import (
+    master_problem,
+    augment_master_problem,
+    get_investment_cost,
+    get_investment_and_availability_decisions,
+    get_emissions,
+)
 
-GRB_PARAMS = [('MIPGap', 0.),
-			  ('FeasibilityTol', 1e-9),
-			  ('IntFeasTol', 1e-9),
-			  ('MarkowitzTol', 1e-4),
-			  ('OptimalityTol', 1e-9),
-			  ('MIPFocus', 2),
-			  ('MIPGap', 0.),
-			  ('Presolve', 0),
-			  ('Cuts', 0),
-			  ('Aggregate', 0)]
 
-if enable_custom_configuration:
-	for parameter, value in GRB_PARAMS:
-		master_problem.setParam(parameter, value)
-		subproblem.setParam(parameter, value)
+# Configure the algorithm for solving the robust optimization problem.
+MAX_ITERATIONS = 5
 
-MAX_ITERATIONS = 10
-EPSILON = 1e-6 	# From Minguez (2016)
-# A bug or numerical issues cause LB to become higher than UB in some cases.
-# This allows some slack.
+# Compile solution times for the master problem and subproblem to these objects.
+master_problem_timer = Timer()
+subproblem_timer = Timer()
+
+# Threshold for algorithm convergence.
+EPSILON = 1e-6  # From Minguez et al. (2016)
+
+# Numerical precision issues can cause LB to become higher than UB in some cases.
+# This threshold allows some slack but an error is raised if the threshold is exceeded.
 BAD_GAP_THRESHOLD = -1e-6
 
+# Initial upper and lower bounds for the algorithm.
 UB = np.inf
 LB = -np.inf
 
-
-def compute_objective_gap(LB, UB):
-	return (UB - LB) / float(UB)
-
-
-d = np.zeros((len(nodes), 1)) 	# no uncertain variables for the first iteration
-converged = False
-
-separator = '-' * 50
-
+# Used for collecting gaps when the algorithm runs.
 gaps = []
+
+# A line separating stuff in standard output.
+separator = "-" * 50
 
 
 def print_iteration_counter(iteration):
-	print(separator)
-	print('ITERATION', iteration)
-	print(separator)
+    # Print the current iteration number.
+    print("ITERATION", iteration)
+    print(separator)
 
 
 def print_solution_quality(problem, problem_name):
-	print(separator)
-	print('%s quality and stats:' % problem_name)
-	problem.printQuality()
-	problem.printStats()
-	print(separator)
+    # Print information about the solution quality and problem statistics.
+    print(separator)
+    print("%s quality and stats:" % problem_name)
+    problem.printQuality()
+    problem.printStats()
+    print(separator)
 
 
-for iteration in range(MAX_ITERATIONS):
-	print_iteration_counter(iteration)
+def run_robust_optimization(subproblem_algorithm):
+    # Has the algorithm converged?
+    converged = False
 
-	# augment the master problem for the current iteration
-	if iteration > 0:
-		augment_master_problem(iteration, d)
+    # Import an implementation depending on the subproblem algorithm choice.
+    if subproblem_algorithm == "benders":
+        from subproblem_benders import (
+            solve_subproblem,
+            get_uncertain_variables,
+            get_uncertainty_decisions,
+        )
+    elif subproblem_algorithm == "milp":
+        from subproblem_milp import (
+            solve_subproblem,
+            get_uncertain_variables,
+            get_uncertainty_decisions,
+        )
+    elif subproblem_algorithm == "miqp":
+        from subproblem_miqp import (
+            solve_subproblem,
+            get_uncertain_variables,
+            get_uncertainty_decisions,
+        )
 
-	master_problem.optimize()
+    # Initial uncertain variables for the first master problem iteration.
+    d = np.zeros((len(hours), len(nodes), 1))
 
-	print_solution_quality(master_problem, "Master problem")
+    # The main loop of the algorithm starts here.
+    for iteration in range(MAX_ITERATIONS):
+        print_iteration_counter(iteration)
 
-	# update lower bound
-	LB = master_problem.objVal
+        # Augment the master problem for the current iteration.
+        if iteration > 0:
+            g = augment_master_problem(iteration, d)
 
-	# obtain investment decisions
-	master_problem_x = [v for v in master_problem.getVars() if 'unit_investment' in v.varName]
-	master_problem_y = [v for v in master_problem.getVars() if 'line_investment' in v.varName]
+            # Solve the master problem. The context manager measures solution time.
+        with master_problem_timer as t:
+            print("Solving master problem.")
+            master_problem.optimize()
 
-	# round and convert to integer as there may be floating point errors
-	x = [np.round(v.x) for v in master_problem_x]
-	y = [np.round(v.x) for v in master_problem_y]
+        print_solution_quality(master_problem, "Master problem")
 
-	if iteration == 0:
-		assert np.allclose(x, 0) and np.allclose(y, 0), 'Initial master problem solution suboptimal.'
-		prev_x = x
-		prev_y = y
+        # Update lower bound to the master problem objective value.
+        LB = master_problem.objVal
 
-	x = {u: v for u, v in zip(candidate_units, x)}
-	y = {l: v for l, v in zip(candidate_lines, y)}
+        # Obtain investment and availability decisions from the master problem solution.
+        xhat, yhat, x, y = get_investment_and_availability_decisions()
 
-	# update subproblem objective function with the investment decisions
-	set_subproblem_objective(x, y)
+        # Solve the subproblem with the newly updated availability decisions.
+        with subproblem_timer as t:
+            print("Solving subproblem.")
+            subproblem_objval, emission_prices = solve_subproblem(x, y)
 
-	subproblem.optimize()
+        # Update the algorithm upper bound and compute new a gap.
+        UB = get_investment_cost(xhat, yhat) + subproblem_objval
 
-	print_solution_quality(subproblem, "Subproblem")
+        GAP = compute_objective_gap(LB, UB)
+        gaps.append(GAP)
 
-	# update upper bound and compute new gap
-	UB = get_investment_cost(x, y) + get_rounded_subproblem_objective_value(x, y)
+        # Read the values of the uncertain variables
+        _, uncertain_variable_vals = get_uncertain_variables()
 
-	GAP = compute_objective_gap(LB, UB)
+        # Fill the next column in the uncertain variables array.
+        d = concatenate_to_uncertain_variables_array(d, uncertain_variable_vals)
 
-	gaps.append(GAP)
+        # Exit if the algorithm converged.
+        if GAP < EPSILON:
+            converged = True
+            assert GAP >= BAD_GAP_THRESHOLD, "Upper bound %f, lower bound %f." % (
+                UB,
+                LB,
+            )
+            break
 
-	# read the values of the uncertain variables
-	_, uncertain_variable_vals = get_uncertain_variables()
+    # Report solution.
+    print_primal_variables = False
 
-	# add new column to d
-	uncertain_variable_vals = uncertain_variable_vals[:, np.newaxis]
-	d = np.concatenate((d, uncertain_variable_vals), axis=1)
-	d = np.round(d, 3)
+    if print_primal_variables:
+        print("Primal variables:")
+        print(separator)
+        for v in master_problem.getVars():
+            print(v.varName, v.x)
 
-	# exit if the algorithm converged. 1) LB and UB needs to be close to each other
-	# 2) solutions to master problem and subproblem must stay constant.
-	prev_x = x
-	prev_y = y
+    print_uncertain_variables = True
 
-	unchanged_decisions = (prev_x == x) and (prev_y == y) and all(d[:, -1] == d[:, -2])
+    if print_uncertain_variables:
+        print(separator)
+        print("Uncertain variables:")
+        print(separator)
+        print(get_uncertainty_decisions())
 
-	if GAP < EPSILON and unchanged_decisions:
-		converged = True
-		assert GAP >= BAD_GAP_THRESHOLD, 'Upper bound %f, lower bound %f.' % (UB, LB)
-		break
+    # Report if the algorithm converged.
+    print(separator)
+
+    if converged:
+        print(
+            "Converged at iteration %d! Gap: %s, UB-LB: %s" % (iteration, GAP, UB - LB)
+        )
+    else:
+        print("Did not converge. Gap: %s, UB-LB: %s" % (GAP, UB - LB))
+
+    print(separator)
+    print("Objective value:", master_problem.objVal)
+    print(
+        "Investment cost %s, operation cost %s "
+        % (get_investment_cost(xhat, yhat), subproblem_objval)
+    )
+    print(separator)
+
+    # Report solution times.
+    print(separator)
+    print(
+        "Master problem solution times (seconds):", master_problem_timer.solution_times
+    )
+    print("Subproblem solution times (seconds):", subproblem_timer.solution_times)
+    print(
+        "Total solution time (seconds):",
+        sum(master_problem_timer.solution_times + subproblem_timer.solution_times),
+    )
+
+    print("xhat")
+    for key, val in xhat.items():
+        if val > 0.0:
+            print(key, val)
+    print("----")
+
+    print("y")
+    for key, val in y.items():
+        if val > 0.0:
+            print(key, val)
+    print("----")
+
+    print("yhat")
+    for key, val in yhat.items():
+        if val > 0.0:
+            print(key, val)
+    print("----")
+
+    up_ramp_active = False
+    down_ramp_active = False
+
+    for o in scenarios:
+        for u in units:
+            for t in hours[1:-1]:
+                gen_diff = g[o, t, u, iteration].x - g[o, t - 1, u, iteration].x
+
+                if np.isclose(gen_diff, G_ramp_max[o, t, u]):
+                    up_ramp_active = True
+
+                if np.isclose(gen_diff, G_ramp_min[o, t, u]):
+                    down_ramp_active = True
+
+    print("up_ramp", up_ramp_active)
+    print("down_ramp", down_ramp_active)
+
+    # Generate emission plots.
+    plot_emissions = True
+
+    if plot_emissions:
+        emissions = get_emissions(g)
+        plt.figure()
+
+        markers = ["ro--", "bs--", "kx--", "yd--", "c*--", "m^--"]
+
+        for i, o in enumerate(scenarios):
+            plt.plot(years, emissions[o, :], markers[i], label="Scenario %d" % o)
+
+        plt.xlabel("master problem time step")
+        plt.ylabel("emissions (kg)")
+        lgd = plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        plt.savefig(
+            "emissions_trajectory_%s.png" % subproblem_algorithm,
+            bbox_extra_artists=(lgd,),
+            bbox_inches="tight",
+        )
+
+        # Emission prices plot.
+        plt.figure()
+        for i, o in enumerate(scenarios):
+            price_list = [emission_prices[o, y] for y in years]
+            plt.plot(years, price_list, markers[i], label="Scenario %d" % o)
+
+        plt.xlabel("master problem time step")
+        plt.ylabel("emissions price (EUR/kg)")
+        lgd = plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        plt.savefig(
+            "emissions_prices_trajectory_%s.png" % subproblem_algorithm,
+            bbox_extra_artists=(lgd,),
+            bbox_inches="tight",
+        )
 
 
-print_primal_variables = True
+def main():
+    # Run robust optimization.
+    parser = argparse.ArgumentParser(description="Run robust optimization.")
+    parser.add_argument(
+        "subproblem_algorithm", type=str, choices=("benders", "milp", "miqp")
+    )
 
-if print_primal_variables:
-	print separator
-	print 'Primal variables:'
-	print separator
-	for v in master_problem.getVars():
-		print v.varName, v.x
+    args = parser.parse_args()
 
-	print separator
-	print 'Uncertain variables:'
-	print separator
-	names, values = get_uncertain_variables()
-	for name, value in zip(names, values):
-		print name, value
+    run_robust_optimization(args.subproblem_algorithm)
 
-print_dual_variables = False
 
-if print_dual_variables:
-	print separator
-	print 'Dual variables:'
-	print separator
-	for v in subproblem.getVars():
-		print v.varName, v.x
-
-print separator
-
-if converged:
-	print 'Converged at iteration %d! Gap: %s' % (iteration, GAP)
-else:
-	print 'Did not converge. Gap: ', GAP
-
-print separator
-print 'Objective value:', master_problem.objVal
-print 'Investment cost %s, operation cost %s ' % (get_investment_cost(x, y), subproblem.objVal)
-print separator
-
-plot_gap = False
-
-if plot_gap:
-	from matplotlib import pyplot as plt
-
-	plt.plot(gaps)
-	plt.ylim(np.amin(gaps), 1e-2)
-	plt.ylabel('GAP')
-	plt.xlabel('iteration')
-	plt.show()
+if __name__ == "__main__":
+    main()
