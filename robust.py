@@ -16,7 +16,7 @@ from common_data import (
     scenarios,
     years,
     hours,
-    nodes,
+    real_nodes,
     units,
     candidate_units,
     candidate_lines,
@@ -28,17 +28,9 @@ from helpers import (
     concatenate_to_uncertain_variables_array,
     Timer,
 )
-from master_problem import (
-    master_problem,
-    augment_master_problem,
-    get_investment_cost,
-    get_investment_and_availability_decisions,
-    get_emissions,
-)
-
 
 # Configure the algorithm for solving the robust optimization problem.
-MAX_ITERATIONS = 5
+MAX_ITERATIONS = 7
 
 # Compile solution times for the master problem and subproblem to these objects.
 master_problem_timer = Timer()
@@ -49,7 +41,7 @@ EPSILON = 1e-6  # From Minguez et al. (2016)
 
 # Numerical precision issues can cause LB to become higher than UB in some cases.
 # This threshold allows some slack but an error is raised if the threshold is exceeded.
-BAD_GAP_THRESHOLD = -1e-6
+BAD_GAP_THRESHOLD = -1e-3
 
 # Initial upper and lower bounds for the algorithm.
 UB = np.inf
@@ -77,24 +69,53 @@ def print_solution_quality(problem, problem_name):
     print(separator)
 
 
-def run_robust_optimization(subproblem_algorithm):
+def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
     # Has the algorithm converged?
     converged = False
 
+    if master_problem_algorithm == "benders_dc":
+        from master_problem_benders_dc import (
+            solve_master_problem,
+            get_investment_and_availability_decisions,
+            get_investment_cost,
+            get_emissions,
+        )
+    elif master_problem_algorithm == "benders_ac":
+        from master_problem_benders import (
+            solve_master_problem,
+            get_investment_and_availability_decisions,
+            get_investment_cost,
+            get_emissions,
+        )
+    elif master_problem_algorithm == "milp_ac":
+        from master_problem import (
+            solve_master_problem,
+            get_investment_and_availability_decisions,
+            get_investment_cost,
+            get_emissions,
+        )
+    elif master_problem_algorithm == "milp_dc":
+        from master_problem_dc import (
+            solve_master_problem,
+            get_investment_and_availability_decisions,
+            get_investment_cost,
+            get_emissions,
+        )
+
     # Import an implementation depending on the subproblem algorithm choice.
-    if subproblem_algorithm == "benders":
+    if subproblem_algorithm == "benders_ac":
         from subproblem_benders import (
             solve_subproblem,
             get_uncertain_variables,
             get_uncertainty_decisions,
         )
-    elif subproblem_algorithm == "milp":
+    elif subproblem_algorithm == "milp_ac":
         from subproblem_milp import (
             solve_subproblem,
             get_uncertain_variables,
             get_uncertainty_decisions,
         )
-    elif subproblem_algorithm == "miqp":
+    elif subproblem_algorithm == "miqp_dc":
         from subproblem_miqp import (
             solve_subproblem,
             get_uncertain_variables,
@@ -102,28 +123,24 @@ def run_robust_optimization(subproblem_algorithm):
         )
 
     # Initial uncertain variables for the first master problem iteration.
-    d = np.zeros((len(hours), len(nodes), 1))
+    d = np.zeros((len(hours), len(real_nodes), 1))
 
     # The main loop of the algorithm starts here.
     for iteration in range(MAX_ITERATIONS):
         print_iteration_counter(iteration)
 
-        # Augment the master problem for the current iteration.
-        if iteration > 0:
-            g = augment_master_problem(iteration, d)
-
-            # Solve the master problem. The context manager measures solution time.
+        # Solve the master problem. The context manager measures solution time.
         with master_problem_timer as t:
             print("Solving master problem.")
-            master_problem.optimize()
-
-        print_solution_quality(master_problem, "Master problem")
+            master_problem_objval, g, s = solve_master_problem(iteration, d)
 
         # Update lower bound to the master problem objective value.
-        LB = master_problem.objVal
+        LB = master_problem_objval
+
+        initial = iteration == 0
 
         # Obtain investment and availability decisions from the master problem solution.
-        xhat, yhat, x, y = get_investment_and_availability_decisions()
+        xhat, yhat, x, y = get_investment_and_availability_decisions(initial)
 
         # Solve the subproblem with the newly updated availability decisions.
         with subproblem_timer as t:
@@ -135,6 +152,8 @@ def run_robust_optimization(subproblem_algorithm):
 
         GAP = compute_objective_gap(LB, UB)
         gaps.append(GAP)
+
+        print("GAP is:", GAP)
 
         # Read the values of the uncertain variables
         _, uncertain_variable_vals = get_uncertain_variables()
@@ -179,7 +198,7 @@ def run_robust_optimization(subproblem_algorithm):
         print("Did not converge. Gap: %s, UB-LB: %s" % (GAP, UB - LB))
 
     print(separator)
-    print("Objective value:", master_problem.objVal)
+    print("Objective value:", master_problem_objval)
     print(
         "Investment cost %s, operation cost %s "
         % (get_investment_cost(xhat, yhat), subproblem_objval)
@@ -231,6 +250,15 @@ def run_robust_optimization(subproblem_algorithm):
 
     print("up_ramp", up_ramp_active)
     print("down_ramp", down_ramp_active)
+    print("----")
+
+    print_storage = False
+
+    if print_storage:
+        print("storage")
+        for key, val in s.items():
+            print(key, val.x)
+        print("----")
 
     # Generate emission plots.
     plot_emissions = True
@@ -242,13 +270,14 @@ def run_robust_optimization(subproblem_algorithm):
         markers = ["ro--", "bs--", "kx--", "yd--", "c*--", "m^--"]
 
         for i, o in enumerate(scenarios):
-            plt.plot(years, emissions[o, :], markers[i], label="Scenario %d" % o)
+            plt.plot(years, emissions[o, :], markers[i], label="Oper. cond. %d" % o)
 
         plt.xlabel("master problem time step")
-        plt.ylabel("emissions (kg)")
+        plt.ylabel("emissions (tonne)")
         lgd = plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
         plt.savefig(
-            "emissions_trajectory_%s.png" % subproblem_algorithm,
+            "emissions_trajectory_%s_%s.png"
+            % (master_problem_algorithm, subproblem_algorithm),
             bbox_extra_artists=(lgd,),
             bbox_inches="tight",
         )
@@ -257,13 +286,14 @@ def run_robust_optimization(subproblem_algorithm):
         plt.figure()
         for i, o in enumerate(scenarios):
             price_list = [emission_prices[o, y] for y in years]
-            plt.plot(years, price_list, markers[i], label="Scenario %d" % o)
+            plt.plot(years, price_list, markers[i], label="Oper. cond. %d" % o)
 
         plt.xlabel("master problem time step")
-        plt.ylabel("emissions price (EUR/kg)")
+        plt.ylabel("emissions price (EUR/tonne)")
         lgd = plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
         plt.savefig(
-            "emissions_prices_trajectory_%s.png" % subproblem_algorithm,
+            "emissions_prices_trajectory_%s_%s.png"
+            % (master_problem_algorithm, subproblem_algorithm),
             bbox_extra_artists=(lgd,),
             bbox_inches="tight",
         )
@@ -273,12 +303,17 @@ def main():
     # Run robust optimization.
     parser = argparse.ArgumentParser(description="Run robust optimization.")
     parser.add_argument(
-        "subproblem_algorithm", type=str, choices=("benders", "milp", "miqp")
+        "master_problem_algorithm",
+        type=str,
+        choices=("benders_ac", "benders_dc", "milp_ac", "milp_dc"),
+    )
+    parser.add_argument(
+        "subproblem_algorithm", type=str, choices=("benders_ac", "milp_ac", "miqp_dc")
     )
 
     args = parser.parse_args()
 
-    run_robust_optimization(args.subproblem_algorithm)
+    run_robust_optimization(args.master_problem_algorithm, args.subproblem_algorithm)
 
 
 if __name__ == "__main__":

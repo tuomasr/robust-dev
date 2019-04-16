@@ -1,4 +1,5 @@
 # Subproblem MILP formulation.
+# Note: this assumes candidate lines are AC.
 
 from __future__ import absolute_import
 from __future__ import division
@@ -10,6 +11,7 @@ import numpy as np
 from common_data import (
     hours,
     scenarios,
+    real_nodes,
     nodes,
     load,
     units,
@@ -18,6 +20,7 @@ from common_data import (
     existing_lines,
     candidate_units,
     candidate_lines,
+    hydro_units,
     G_max,
     F_max,
     F_min,
@@ -28,6 +31,8 @@ from common_data import (
     incidence,
     weights,
     C_g,
+    initial_storage,
+    inflows,
     unit_to_node,
     emission_targets,
     G_emissions,
@@ -51,7 +56,7 @@ from helpers import (
 num_hours = len(hours)
 
 # Problem-specific data: Demand at each node in each time hour and uncertainty in it.
-nominal_demand = load
+nominal_demand = load[:, : len(real_nodes)]
 demand_increase = uncertainty_demand_increase * np.ones_like(nominal_demand)
 
 # Create the model for the subproblem.
@@ -66,18 +71,27 @@ ub2 = GRB.INFINITY
 # Add hour- and nodewise uncertain demand variables and nodewise binary variables for deviating from
 # the nominal demand values.
 d = m.addVars(
-    hours, nodes, name="uncertain_demand", lb=0.0, ub=nominal_demand + demand_increase
+    hours,
+    real_nodes,
+    name="uncertain_demand",
+    lb=0.0,
+    ub=nominal_demand + demand_increase,
 )
-w = m.addVars(nodes, name="demand_deviation", vtype=GRB.BINARY)
+w = m.addVars(real_nodes, name="demand_deviation", vtype=GRB.BINARY)
 
 # Variables for linearizing bilinear terms lambda_[o, t, n] * w[n].
 z = m.addVars(
-    scenarios, hours, nodes, name="linearization_z", lb=-GRB.INFINITY, ub=GRB.INFINITY
+    scenarios,
+    hours,
+    real_nodes,
+    name="linearization_z",
+    lb=-GRB.INFINITY,
+    ub=GRB.INFINITY,
 )
 lambda_tilde = m.addVars(
     scenarios,
     hours,
-    nodes,
+    real_nodes,
     name="linearization_lambda_tilde",
     lb=-GRB.INFINITY,
     ub=GRB.INFINITY,
@@ -99,9 +113,29 @@ beta_underline = m.addVars(
     scenarios, hours, units, name="dual_minimum_generation", lb=0.0, ub=ub1
 )
 
-# Maximum up- and downramp dual variables.
 ramp_hours = get_ramp_hours()
 
+# Storage dual variables.
+year_first_hours = [t for t in hours if is_year_first_hour(t)]
+
+beta_storage_underline = m.addVars(
+    scenarios, hours, hydro_units, name="dual_minimum_storage", lb=0.0, ub=ub1
+)
+
+phi_initial_storage = m.addVars(
+    scenarios,
+    year_first_hours,
+    hydro_units,
+    name="dual_initial_storage",
+    lb=lb2,
+    ub=ub2,
+)
+
+phi_storage = m.addVars(
+    scenarios, ramp_hours, hydro_units, name="dual_storage", lb=lb2, ub=ub2
+)
+
+# Maximum up- and down ramp dual variables.
 beta_ramp_bar = m.addVars(
     scenarios, ramp_hours, units, name="dual_maximum_ramp_upwards", lb=0.0, ub=ub1
 )
@@ -142,12 +176,22 @@ def get_objective(x, y):
     obj = sum(
         sum(
             z[o, t, n] * demand_increase[t, n] + lambda_[o, t, n] * nominal_demand[t, n]
-            for n in nodes
+            for n in real_nodes
         )
         - sum(beta_bar[o, t, u] * G_max[o, t, u] for u in units if unit_built(x, t, u))
         - sum(
             beta_candidate_bar[o, t, u] * get_candidate_generation_capacity(t, u, x)
             for u in candidate_units
+        )
+        + sum(
+            initial_storage[u][o, to_year(t)] * phi_initial_storage[o, t, u]
+            if t in year_first_hours
+            else 0.0
+            for u in hydro_units
+        )
+        + sum(
+            inflows[u][o, t] * phi_storage[o, t, u] if t in ramp_hours else 0.0
+            for u in hydro_units
         )
         - sum(
             (mu_bar[o, t, l] * F_max[o, t, l] - mu_underline[o, t, l] * F_min[o, t, l])
@@ -192,13 +236,14 @@ m.addConstrs(
     (
         d[t, n] - nominal_demand[t, n] - w[n] * demand_increase[t, n] == 0.0
         for t in hours
-        for n in nodes
+        for n in real_nodes
     ),
     name="uncertainty_set_demand_increase",
 )
 
 m.addConstr(
-    sum(w[n] for n in nodes) - uncertainty_budget == 0.0, name="uncertainty_set_budget"
+    sum(w[n] for n in real_nodes) - uncertainty_budget == 0.0,
+    name="uncertainty_set_budget",
 )
 
 # Constraints for linearizing lambda_[n, o] * d[n].
@@ -207,18 +252,28 @@ m.addConstrs(
         z[o, t, n] - lambda_[o, t, n] + lambda_tilde[o, t, n] == 0.0
         for o in scenarios
         for t in hours
-        for n in nodes
+        for n in real_nodes
     ),
     name="linearization_z_definition",
 )
 
 m.addConstrs(
-    (w[n] * (-K) - z[o, t, n] <= 0.0 for o in scenarios for t in hours for n in nodes),
+    (
+        w[n] * (-K) - z[o, t, n] <= 0.0
+        for o in scenarios
+        for t in hours
+        for n in real_nodes
+    ),
     name="linearization_z_lb",
 )
 
 m.addConstrs(
-    (z[o, t, n] - w[n] * K <= 0.0 for o in scenarios for t in hours for n in nodes),
+    (
+        z[o, t, n] - w[n] * K <= 0.0
+        for o in scenarios
+        for t in hours
+        for n in real_nodes
+    ),
     name="linearization_z_ub",
 )
 
@@ -227,7 +282,7 @@ m.addConstrs(
         (1.0 - w[n]) * (-K) - lambda_tilde[o, t, n] <= 0.0
         for o in scenarios
         for t in hours
-        for n in nodes
+        for n in real_nodes
     ),
     name="lambda_tilde_lb",
 )
@@ -237,9 +292,24 @@ m.addConstrs(
         lambda_tilde[o, t, n] - (1.0 - w[n]) * K <= 0.0
         for o in scenarios
         for t in hours
-        for n in nodes
+        for n in real_nodes
     ),
     name="lambda_tilde_ub",
+)
+
+# Storage dual constraints.
+m.addConstrs(
+    (
+        (phi_initial_storage[o, t, u] if is_year_first_hour(t) else 0.0)
+        + beta_storage_underline[o, t, u]
+        - (phi_storage[o, t, u] if not is_year_last_hour(t) else 0.0)
+        + (phi_storage[o, t - 1, u] if not is_year_first_hour(t) else 0.0)
+        == 0.0
+        for o in scenarios
+        for t in hours
+        for u in hydro_units
+    ),
+    name="storage_dual_constraint",
 )
 
 
@@ -284,6 +354,7 @@ def set_dependent_constraints(x, y):
             - beta_bar[o, t, u]
             - (beta_candidate_bar[o, t, u] if u in candidate_units else 0.0)
             + beta_underline[o, t, u]
+            + (phi_storage[o, t, u] if t in ramp_hours and u in hydro_units else 0.0)
             - (beta_ramp_bar[o, t - 1, u] if not is_year_first_hour(t) else 0.0)
             + (beta_ramp_bar[o, t, u] if not is_year_last_hour(t) else 0.0)
             + (beta_ramp_underline[o, t - 1, u] if not is_year_first_hour(t) else 0.0)
@@ -331,9 +402,9 @@ def solve_subproblem(x, y):
 
 def get_uncertain_variables():
     # Get the names and values of uncertain variables of the subproblem.
-    names = np.array([w[n].varName for n in nodes])
+    names = np.array([w[n].varName for n in real_nodes])
     values = np.array(
-        [w[n].Xn * demand_increase[:, n] + nominal_demand[:, n] for n in nodes]
+        [w[n].Xn * demand_increase[:, n] + nominal_demand[:, n] for n in real_nodes]
     )
     values = np.transpose(values)
 
@@ -342,5 +413,5 @@ def get_uncertain_variables():
 
 def get_uncertainty_decisions():
     # Get a vector of the uncertainty decisions w.
-    values = np.array([w[n].Xn for n in nodes])
+    values = np.array([w[n].Xn for n in real_nodes])
     return values
