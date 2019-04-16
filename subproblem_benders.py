@@ -1,4 +1,5 @@
 # Subproblem Benders formulation.
+# Note: Assumes that candidate lines are AC.
 
 from __future__ import absolute_import
 from __future__ import division
@@ -10,6 +11,7 @@ import numpy as np
 from common_data import (
     hours,
     scenarios,
+    real_nodes,
     nodes,
     load,
     units,
@@ -18,6 +20,7 @@ from common_data import (
     existing_lines,
     candidate_units,
     candidate_lines,
+    hydro_units,
     G_max,
     F_max,
     F_min,
@@ -28,6 +31,8 @@ from common_data import (
     incidence,
     weights,
     C_g,
+    initial_storage,
+    inflows,
     unit_to_node,
     emission_targets,
     G_emissions,
@@ -53,7 +58,7 @@ from helpers import (
 
 
 # Problem-specific data: Demand at each node in each time hour and uncertainty in it.
-nominal_demand = load
+nominal_demand = load[:, : len(real_nodes)]
 demand_increase = uncertainty_demand_increase * np.ones_like(nominal_demand)
 
 K = 100.0
@@ -65,12 +70,13 @@ mp = Model("subproblem_master")
 
 delta = mp.addVars(scenarios, hours, name="delta", lb=-GRB.INFINITY)
 
-w = mp.addVars(nodes, name="demand_deviation", vtype=GRB.BINARY)
+w = mp.addVars(real_nodes, name="demand_deviation", vtype=GRB.BINARY)
 
 mp.setObjective(sum(delta[o, t] for o in scenarios for t in hours), GRB.MAXIMIZE)
 
 mp.addConstr(
-    sum(w[n] for n in nodes) - uncertainty_budget == 0.0, name="uncertainty_set_budget"
+    sum(w[n] for n in real_nodes) - uncertainty_budget == 0.0,
+    name="uncertainty_set_budget",
 )
 
 # Solver methods.
@@ -81,6 +87,17 @@ mp.params.Method = mp_method
 if enable_custom_configuration:
     for parameter, value in GRB_PARAMS:
         mp.setParam(parameter, value)
+
+
+def initialize_master():
+    # Initialize the Benders master problem by removing old cuts.
+    existing_constraints = [
+        c for c in mp.getConstrs() if "delta_constraint_" in c.ConstrName
+    ]
+
+    if existing_constraints:
+        mp.remove(existing_constraints)
+        mp.update()
 
 
 def augment_master(x, dual_values, iteration):
@@ -98,19 +115,22 @@ def augment_master(x, dual_values, iteration):
             - sum(
                 (
                     max_lambda_
-                    * sum((rho_bar[o, t, n] - omega_bar[o, t, n]) * w[n] for n in nodes)
+                    * sum(
+                        (rho_bar[o, t, n] - omega_bar[o, t, n]) * w[n]
+                        for n in real_nodes
+                    )
                     - min_lambda_
                     * sum(
                         (rho_underline[o, t, n] - omega_underline[o, t, n]) * w[n]
-                        for n in nodes
+                        for n in real_nodes
                     )
                     + sum(
                         C_g[o, t, u] * weights[o] * sigma[o, t, u]
                         for u in units
                         if unit_built(x, t, u)
                     )
-                    + max_lambda_ * sum(omega_bar[o, t, n] for n in nodes)
-                    - min_lambda_ * sum(omega_underline[o, t, n] for n in nodes)
+                    + max_lambda_ * sum(omega_bar[o, t, n] for n in real_nodes)
+                    - min_lambda_ * sum(omega_underline[o, t, n] for n in real_nodes)
                 )
                 for o in scenarios
                 for t in hours
@@ -124,19 +144,22 @@ def augment_master(x, dual_values, iteration):
                 delta[o, t]
                 - (
                     max_lambda_
-                    * sum((rho_bar[o, t, n] - omega_bar[o, t, n]) * w[n] for n in nodes)
+                    * sum(
+                        (rho_bar[o, t, n] - omega_bar[o, t, n]) * w[n]
+                        for n in real_nodes
+                    )
                     - min_lambda_
                     * sum(
                         (rho_underline[o, t, n] - omega_underline[o, t, n]) * w[n]
-                        for n in nodes
+                        for n in real_nodes
                     )
                     + sum(
                         C_g[o, t, u] * weights[o] * sigma[o, t, u]
                         for u in units
                         if unit_built(x, t, u)
                     )
-                    + max_lambda_ * sum(omega_bar[o, t, n] for n in nodes)
-                    - min_lambda_ * sum(omega_underline[o, t, n] for n in nodes)
+                    + max_lambda_ * sum(omega_bar[o, t, n] for n in real_nodes)
+                    - min_lambda_ * sum(omega_underline[o, t, n] for n in real_nodes)
                 )
                 <= 0.0
                 for o in scenarios
@@ -219,6 +242,28 @@ def create_slave(x, y, ww):
         scenarios, hours, units, name="dual_maximum_generation", lb=0.0, ub=ub1
     )
 
+    ramp_hours = get_ramp_hours()
+
+    # Storage dual variables.
+    year_first_hours = [t for t in hours if is_year_first_hour(t)]
+
+    beta_storage_underline = sp.addVars(
+        scenarios, hours, hydro_units, name="dual_minimum_storage", lb=0.0, ub=ub1
+    )
+
+    phi_initial_storage = sp.addVars(
+        scenarios,
+        year_first_hours,
+        hydro_units,
+        name="dual_initial_storage",
+        lb=lb2,
+        ub=ub2,
+    )
+
+    phi_storage = sp.addVars(
+        scenarios, ramp_hours, hydro_units, name="dual_storage", lb=lb2, ub=ub2
+    )
+
     # Transmission flow dual variables.
     phi = sp.addVars(scenarios, hours, lines, name="dual_flow", lb=lb2, ub=ub2)
 
@@ -241,9 +286,7 @@ def create_slave(x, y, ww):
     # Dual variable for the reference node voltage angle.
     eta = sp.addVars(scenarios, hours, name="dual_reference_node_angle", lb=lb2, ub=ub2)
 
-    # Maximum up- and downramp dual variables.
-    ramp_hours = get_ramp_hours()
-
+    # Maximum up- and down ramp dual variables.
     beta_ramp_bar = sp.addVars(
         scenarios, ramp_hours, units, name="dual_maximum_ramp_upwards", lb=0.0, ub=ub1
     )
@@ -260,12 +303,22 @@ def create_slave(x, y, ww):
         sum(
             z[o, t, n] * demand_increase[t, n]
             + (z[o, t, n] + lambda_tilde[o, t, n]) * nominal_demand[t, n]
-            for n in nodes
+            for n in real_nodes
         )
         - sum(beta_bar[o, t, u] * G_max[o, t, u] for u in units if unit_built(x, t, u))
         - sum(
             beta_candidate_bar[o, t, u] * get_candidate_generation_capacity(t, u, x)
             for u in candidate_units
+        )
+        + sum(
+            initial_storage[u][o, to_year(t)] * phi_initial_storage[o, t, u]
+            if t in year_first_hours
+            else 0.0
+            for u in hydro_units
+        )
+        + sum(
+            inflows[u][o, t] * phi_storage[o, t, u] if t in ramp_hours else 0.0
+            for u in hydro_units
         )
         - sum(
             (mu_bar[o, t, l] * F_max[o, t, l] - mu_underline[o, t, l] * F_min[o, t, l])
@@ -303,6 +356,7 @@ def create_slave(x, y, ww):
             - (beta_candidate_bar[o, t, u] if u in candidate_units else 0.0)
             - beta_bar[o, t, u]
             + beta_underline[o, t, u]
+            + (phi_storage[o, t, u] if t in ramp_hours and u in hydro_units else 0.0)
             - (beta_ramp_bar[o, t - 1, u] if not is_year_first_hour(t) else 0.0)
             + (beta_ramp_bar[o, t, u] if not is_year_last_hour(t) else 0.0)
             + (beta_ramp_underline[o, t - 1, u] if not is_year_first_hour(t) else 0.0)
@@ -316,6 +370,20 @@ def create_slave(x, y, ww):
             if unit_built(x, t, u)
         ),
         name="generation_dual_constraint",
+    )
+
+    sp.addConstrs(
+        (
+            (phi_initial_storage[o, t, u] if is_year_first_hour(t) else 0.0)
+            + beta_storage_underline[o, t, u]
+            - (phi_storage[o, t, u] if not is_year_last_hour(t) else 0.0)
+            + (phi_storage[o, t - 1, u] if not is_year_first_hour(t) else 0.0)
+            == 0.0
+            for o in scenarios
+            for t in hours
+            for u in hydro_units
+        ),
+        name="storage_dual_constraint",
     )
 
     sp.addConstrs(
@@ -357,7 +425,7 @@ def create_slave(x, y, ww):
             ww[n] * min_lambda_ - z[o, t, n] <= 0.0
             for o in scenarios
             for t in hours
-            for n in nodes
+            for n in real_nodes
         ),
         name="linearization_z_lb",
     )
@@ -367,7 +435,7 @@ def create_slave(x, y, ww):
             z[o, t, n] - ww[n] * max_lambda_ <= 0.0
             for o in scenarios
             for t in hours
-            for n in nodes
+            for n in real_nodes
         ),
         name="linearization_z_ub",
     )
@@ -377,7 +445,7 @@ def create_slave(x, y, ww):
             (1.0 - ww[n]) * min_lambda_ - lambda_tilde[o, t, n] <= 0.0
             for o in scenarios
             for t in hours
-            for n in nodes
+            for n in real_nodes
         ),
         name="lambda_tilde_lb",
     )
@@ -387,7 +455,7 @@ def create_slave(x, y, ww):
             lambda_tilde[o, t, n] - (1.0 - ww[n]) * max_lambda_ <= 0.0
             for o in scenarios
             for t in hours
-            for n in nodes
+            for n in real_nodes
         ),
         name="lambda_tilde_ub",
     )
@@ -418,7 +486,7 @@ def update_slave(updatable_constrs, ww):
 
     for o in scenarios:
         for t in hours:
-            for n in nodes:
+            for n in real_nodes:
                 rho_underline_constrs[o, t, n].RHS = -ww[n] * min_lambda_
                 rho_bar_constrs[o, t, n].RHS = ww[n] * max_lambda_
 
@@ -441,9 +509,9 @@ def get_dual_variables(sp, all_constrs):
 
 def get_uncertain_variables():
     # Get the names and values of uncertain variables of the subproblem.
-    names = np.array([w[n].varName for n in nodes])
+    names = np.array([w[n].varName for n in real_nodes])
     values = np.array(
-        [w[n].Xn * demand_increase[:, n] + nominal_demand[:, n] for n in nodes]
+        [w[n].Xn * demand_increase[:, n] + nominal_demand[:, n] for n in real_nodes]
     )
     values = np.transpose(values)
 
@@ -452,7 +520,7 @@ def get_uncertain_variables():
 
 def get_uncertainty_decisions():
     # Get a vector of the uncertainty decisions w.
-    values = np.array([w[n].Xn for n in nodes])
+    values = np.array([w[n].Xn for n in real_nodes])
     return values
 
 
@@ -467,6 +535,7 @@ def solve_subproblem(x, y):
     ub = np.inf
 
     # Initialize Benders.
+    initialize_master()
     ww = get_uncertain_demand_decisions(initial=True)
     sp, all_constrs, updatable_constrs, beta_emissions = create_slave(x, y, ww)
     sp.optimize()

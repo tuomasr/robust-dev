@@ -1,5 +1,5 @@
 # Master problem formulation.
-# Note: This assumes candidate lines are AC.
+# Note: this assumes that all candidate lines are DC.
 
 from __future__ import absolute_import
 from __future__ import division
@@ -162,7 +162,7 @@ m.addConstrs(
 )
 
 # Variable representing the subproblem objective value.
-theta = m.addVar(name="theta", lb=0.0, ub=GRB.INFINITY)
+theta = m.addVar(name="theta", lb=-999999999.999, ub=GRB.INFINITY)
 
 # Set master problem objective function. The optimal solution is no investment initially.
 m.setObjective(get_investment_cost(xhat, yhat) + theta, GRB.MINIMIZE)
@@ -250,20 +250,17 @@ def augment_master_problem(current_iteration, d):
     )
 
     # Flow constraints for the lines.
-    # Note this contains a product of a binary and a continuous variable.
-    # Gurobi silently handles this. Gurobi's resolution seems faster than manual linearization.
     m.addConstrs(
         (
             f[o, t, l, v]
             - B[l]
-            * line_built(y, t, l)
             * (delta[o, t, get_start_node(l), v] - delta[o, t, get_end_node(l), v])
             == 0.0
             for o in scenarios
             for t in hours
-            for l in lines
+            for l in existing_lines
         ),
-        name="power_flow_%d" % current_iteration,
+        name="power_flow_existing_%d" % current_iteration,
     )
 
     # Maximum flows for all lines.

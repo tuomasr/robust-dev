@@ -13,37 +13,38 @@ np.random.seed(13)
 # Solver method for master problem and subproblem.
 # -1 = automatic
 # 4 = deterministic concurrent (runs out of memory for bigger instances).
-master_method = 4
-subproblem_method = 4
+master_method = -1
+subproblem_method = -1
 
 # Custom configuration for both problems.
 enable_custom_configuration = False
 
 GRB_PARAMS = [
-    ("MIPGap", 0),
+    # ("MIPGap", 0),
     ("FeasibilityTol", 1e-9),
-    ("IntFeasTol", 1e-9),
-    ("MarkowitzTol", 1e-4),
-    ("OptimalityTol", 1e-9),
+    # ("IntFeasTol", 1e-9),
+    # ("MarkowitzTol", 1e-4),
+    # ("OptimalityTol", 1e-9),
     # ('MIPFocus', 2),
     # ('Presolve', 0),
     # ('Cuts', 0),
     # ('Aggregate', 0)]
 ]
 
-# Data taken from http://orbit.dtu.dk/files/120568114/An_Updated_Version_of_the_IEEE_RTS_24Bus_System_for_Electricty_Market_an....pdf
+# Operation data taken from
+# https://ieeexplore-ieee-org.libproxy.aalto.fi/stamp/stamp.jsp?tp=&arnumber=8309280
 
 # Uncertainty parameters.
 uncertainty_demand_increase = 100.0
 uncertainty_budget = 2.0
 
 # Scenarios.
-num_scenarios = 3
+num_scenarios = 5
 scenarios = list(range(num_scenarios))
 
 # Years and hours.
-num_years = 4
-num_hours_per_year = 5
+num_years = 10
+num_hours_per_year = 24
 num_hours = num_years * num_hours_per_year
 
 annualizer = float(num_years) * 365.0 / float(num_hours)
@@ -52,151 +53,174 @@ years = list(range(num_years))
 hours = list(range(num_hours))
 
 # Nodes.
-num_nodes = 24
+# There are 8 "real" nodes and 6 dummy nodes with no generation or load.
+# The dummy nodes are used to represent the transmission network.
+# The "real" nodes are:
+# 0: dk1
+# 1: dk2
+# 2: ee
+# 3: fi
+# 4: lt
+# 5: lv
+# 6: no
+# 7: se
+# 8-13: dummy nodes
+
+num_real_nodes = 8
+real_nodes = list(range(num_real_nodes))
+
+num_nodes = 14
 nodes = list(range(num_nodes))
 
 # Load.
-hourly_load = np.array(
-    [
-        1775.835,
-        1669.815,
-        1590.3,
-        1563.795,
-        1563.795,
-        1590.3,
-        1961.37,
-        2279.43,
-        2517.975,
-        2544.48,
-        2544.48,
-        2517.975,
-        2517.975,
-        2517.975,
-        2464.965,
-        2464.965,
-        2623.995,
-        2650.5,
-        2650.5,
-        2544.48,
-        2411.955,
-        2199.915,
-        1934.865,
-        1669.815,
-    ]
-)
+load_real_nodes = np.genfromtxt("load.csv", delimiter=";", skip_header=1)
+
+hourly_load = np.zeros((24, num_nodes))
+hourly_load[:, : load_real_nodes.shape[1]] = load_real_nodes
 
 hourly_load = hourly_load[:num_hours_per_year]
 
-load_shares = (
-    np.array(
-        [
-            3.8,
-            3.4,
-            6.3,
-            2.6,
-            2.5,
-            4.8,
-            4.4,
-            6.0,
-            6.1,
-            6.8,
-            0.0,
-            0.0,
-            9.3,
-            6.8,
-            11.1,
-            3.5,
-            0.0,
-            11.7,
-            6.4,
-            4.5,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-        ]
-    )
-    / 100.0
-)
-
 assert len(hourly_load) == num_hours_per_year
-assert len(load_shares) == num_nodes
-assert np.isclose(sum(load_shares), 1.0)
 
 # num_hours x num_nodes array
-load = np.dot(np.array([hourly_load]).T, np.array([load_shares]))
-
-# num_hours x num_nodes array
-load = np.tile(load, (num_years, 1))
-
-# Maximum emissions by year.
-adversarial_hourly_load = hourly_load.copy()
-adversarial_hourly_load[0] += 100
-adversarial_hourly_load[1] += 100
-start_emissions = sum(adversarial_hourly_load)
-emission_targets = np.linspace(start_emissions, 0.0, num_years)
-
-assert len(emission_targets) == num_years
+load = np.tile(hourly_load, (num_years, 1))
 
 # Units.
-existing_units = list(range(12))
+generation_capacities = np.genfromtxt(
+    "generation_capacity.csv", delimiter=";", skip_header=1
+)
 
-# Generator to node mapping.
-existing_unit_to_node = {
-    0: 0,
-    1: 1,
-    2: 6,
-    3: 12,
-    4: 14,
-    5: 14,
-    6: 15,
-    7: 17,
-    8: 20,
-    9: 21,
-    10: 22,
-    11: 22,
-}
+# Compile information about existing units by looping the table of
+# generation capacities (real nodes x generation types).
+unit_idx = 0
+G_max = []
+existing_unit_to_node = dict()
+unit_to_generation_type = dict()
+
+# Loop real nodes.
+for i in range(generation_capacities.shape[0]):
+    # Loop generation types.
+    for j in range(generation_capacities.shape[1]):
+        if generation_capacities[i, j] > 0:
+            existing_unit_to_node[unit_idx] = i
+            unit_to_generation_type[unit_idx] = j
+            # Convert GWs to MWs.
+            G_max.append(generation_capacities[i, j] * 1000.0)
+
+            unit_idx += 1
+
+existing_units = list(range(unit_idx))
+
+# Convert G_max into an array that is easier to reshape.
+G_max = np.array([np.array(G_max)], dtype=np.float32)
 
 # Generation types:
-# 0: conventional
-# 1: wind
-unit_to_generation_type = {
-    0: 0,
-    1: 0,
-    2: 0,
-    3: 0,
-    4: 0,
-    5: 0,
-    6: 0,
-    7: 0,
-    8: 0,
-    9: 0,
-    10: 0,
-    11: 0,
-}
+# 0: coal
+# 1: gas
+# 2: ccgt
+# 3: oil
+# 4: biomass
+# 5: oil shale
+# 6: nuclear
+# 7: hydro
+# 8: wind
+# 9: pv
+# different chp types (e=extraction, b=back pressure):
+# 10: coal-e
+# 11: gas-b
+# 12: gas-e
+# 13: oil-b
+# 14: oil-e
+# 15: biomass-e
+# 16: waste-e
+# 17: peat-e
+
+# Hydro units are treated specially because they act as a storage.
+hydro_units = [u for u, t in unit_to_generation_type.items() if t == 7]
 
 # Generation costs.
-generation_type_to_cost = {0: 20.0, 1: 1.0}
+generation_type_to_cost = {
+    0: 29.0,
+    1: 85.0,
+    2: 47.0,
+    3: 78.0,
+    4: 62.0,
+    5: 33.0,
+    6: 9.0,
+    7: 5.0,
+    8: 0.0,
+    9: 0.0,
+    10: 15.0,
+    11: 45.0,
+    12: 46.0,
+    13: 37.0,
+    14: 38.0,
+    15: 28.0,
+    16: 25.0,
+    17: 22.0,
+}
 
 C_g = np.array([], dtype=np.float32)
 for u in existing_units:
     cost = generation_type_to_cost[unit_to_generation_type[u]]
-    C_g = np.append(C_g, [cost * np.random.uniform(1.0, 1.5)])
-
-# Generation limits.
-G_max = np.array(
-    [[152, 152, 350, 591, 60, 155, 155, 400, 400, 300, 310, 350]], dtype=np.float32
-)
+    C_g = np.append(C_g, [cost * np.random.uniform(1.0, 1.0)])
 
 # Greenhouse gas emissions.
-generation_type_to_emissions = {0: 1.0, 1: 0.0}
+# The first figure is emissions factor in kg/kWh, which is the same as tonne/MWh.
+# The second one (if applicable and known) is efficiency of the generation type.
+# 0: coal
+# 1: gas
+# 2: ccgt
+# 3: oil
+# 4: biomass
+# 5: oil shale
+# 6: nuclear
+# 7: hydro
+# 8: wind
+# 9: pv
+# different chp types (e=extraction, b=back pressure):
+# 10: coal-e
+# 11: gas-b
+# 12: gas-e
+# 13: oil-b
+# 14: oil-e
+# 15: biomass-e
+# 16: waste-e
+# 17: peat-e
+generation_type_to_emissions = {
+    0: 0.34 / 0.41,
+    1: 0.2 / 0.4,
+    2: 0.2 / 0.54,
+    3: 0.28 / 0.39,
+    4: 0.0 / 0.35,
+    5: 0.39 / 0.37,
+    6: 0.0 / 0.33,
+    7: 0.0 / 0.85,
+    8: 0.0,
+    9: 0.0,
+    10: 0.34 / 0.81,
+    11: 0.2 / 0.85,
+    12: 0.2 / 0.85,
+    13: 0.28 / 0.85,
+    14: 0.28 / 0.85,
+    15: 0.0 / 0.81,
+    16: 0.33 / 0.61,
+    17: 0.38 / 0.81,
+}
 
 G_emissions = np.array([], dtype=np.float32)
 for u in existing_units:
     emissions = generation_type_to_emissions[unit_to_generation_type[u]]
     G_emissions = np.append(G_emissions, [emissions])
 
-# Generate a candidate unit for each node.
+# Maximum emissions by year.
+start_emissions = 50000.0
+final_emissions = 5000.0
+emission_targets = np.linspace(start_emissions, final_emissions, num_years)
+
+assert len(emission_targets) == num_years
+
+# Generate a candidate wind power unit for each real node.
 candidate_units = []
 candidate_unit_to_node = dict()
 unit_idx = len(existing_units)
@@ -204,23 +228,21 @@ unit_idx = len(existing_units)
 generate_candidate_units = True
 
 if generate_candidate_units:
-    for node_idx, node in enumerate(nodes):
+    for node_idx, node in enumerate(real_nodes):
         # Set mapping from node to unit id.
         candidate_units.append(unit_idx)
         candidate_unit_to_node[unit_idx] = node_idx
 
         # Set generation parameters.
-        generation_type = 1  # Wind.
+        generation_type = 8  # Wind.
+        unit_to_generation_type[unit_idx] = generation_type
         cost = generation_type_to_cost[generation_type]
         emissions = generation_type_to_emissions[generation_type]
 
-        C_g = np.append(C_g, [cost * np.random.uniform(1.0, 1.5)])
-        G_max = np.concatenate((G_max, [[200.0]]), axis=1)
+        C_g = np.append(C_g, [cost * np.random.uniform(1.0, 1.0)])
+        G_max = np.concatenate((G_max, [[10000.0]]), axis=1)
         G_emissions = np.append(G_emissions, [emissions])
         unit_idx += 1
-else:
-    candidate_units = []
-    candidate_unit_to_node = dict()
 
 # Update the total mapping from units to nodes.
 unit_to_node = existing_unit_to_node.copy()
@@ -245,9 +267,55 @@ C_g = np.tile(C_g, (num_scenarios, num_hours, 1))
 
 G_emissions = np.tile(G_emissions, (num_scenarios, num_hours, 1))
 
-# Ramping limits from time step to another (both up- and down-ramp).
-G_ramp_max = np.array([[50.0]])
-G_ramp_max = np.tile(G_ramp_max, (num_scenarios, num_hours, num_units))
+# Ramping limits from time step to another (both up- and down-ramp) as a percentage of total
+# generation capacity.
+# TODO: Get proper numbers for these.
+# 0: coal
+# 1: gas
+# 2: ccgt
+# 3: oil
+# 4: biomass
+# 5: oil shale
+# 6: nuclear
+# 7: hydro
+# 8: wind
+# 9: pv
+# different chp types (e=extraction, b=back pressure):
+# 10: coal-e
+# 11: gas-b
+# 12: gas-e
+# 13: oil-b
+# 14: oil-e
+# 15: biomass-e
+# 16: waste-e
+# 17: peat-e
+generation_type_to_ramp_rate = {
+    0: 0.2,
+    1: 0.5,
+    2: 0.5,
+    3: 0.2,
+    4: 0.2,
+    5: 0.2,
+    6: 0.1,
+    7: 0.8,
+    8: 0.9,
+    9: 0.9,
+    10: 0.2,
+    11: 0.5,
+    12: 0.5,
+    13: 0.2,
+    14: 0.2,
+    15: 0.2,
+    16: 0.2,
+    17: 0.2,
+}
+
+G_ramp_max = np.zeros_like(G_max)
+
+for u in units:
+    t = unit_to_generation_type[u]
+    G_ramp_max[:, :, u] = G_max[:, :, u] * generation_type_to_ramp_rate[t]
+
 G_ramp_min = -G_ramp_max
 
 assert (
@@ -258,73 +326,55 @@ assert (
     == num_units
 )
 
+# Initial storage levels.
+initial_storage = dict()
+for u in hydro_units:
+    noise = np.random.uniform(0.2, 0.3, (num_scenarios, num_years))
+    mean_max_capacity = np.mean(G_max[:, :, u])
+    initial_storage[u] = noise * mean_max_capacity
+
+# Inflows.
+inflows = dict()
+for u in hydro_units:
+    noise = np.random.uniform(0.2, 0.3, (num_scenarios, num_hours))
+    mean_max_capacity = np.mean(G_max[:, :, u])
+    inflows[u] = noise * mean_max_capacity
+
 # Build lines x nodes incidence matrix for existing lines.
 # List pairs of nodes that are connected. Note: these are in 1-based indexing.
+# node ids:
+# dk1: 1
+# dk2: 2
+# ee: 3
+# fi: 4
+# lt: 5
+# lv: 6
+# no: 7
+# se: 8
 lines = [
-    (1, 2),
-    (1, 3),
-    (1, 5),
-    (2, 4),
-    (2, 6),
-    (3, 9),
-    (3, 24),
-    (4, 9),
-    (5, 10),
-    (6, 10),
-    (7, 8),
-    (8, 9),
-    (8, 10),
-    (9, 11),
-    (9, 12),
-    (10, 11),
-    (10, 12),
-    (11, 13),
-    (11, 14),
-    (12, 13),
-    (12, 23),
-    (13, 23),
-    (14, 16),
-    (15, 16),
-    (15, 21),
-    (15, 24),
-    (16, 17),
-    (16, 19),
-    (17, 18),
-    (17, 22),
-    (18, 21),
-    (19, 20),
-    (20, 23),
-    (21, 22),
-]
-
-candidate_line_connections = [
-    (1, 4),
-    (2, 5),
-    (3, 10),
-    (4, 10),
-    (5, 11),
-    (6, 11),
     (7, 9),
-    (8, 10),
-    (9, 13),
-    (10, 13),
-    (11, 15),
-    (12, 14),
-    (13, 24),
-    (14, 17),
-    (15, 17),
-    (16, 18),
-    (17, 19),
-    (18, 22),
-    (19, 21),
-    (20, 24),
-    (21, 23),
-    (22, 24),
-    (23, 24),
-    (24, 9),
+    (7, 10),
+    (7, 11),
+    (7, 12),
+    (7, 1),
+    (9, 8),
+    (10, 8),
+    (11, 8),
+    (12, 8),
+    (8, 1),
+    (1, 2),
+    (2, 8),
+    (8, 13),
+    (8, 14),
+    (13, 4),
+    (14, 4),
+    (4, 3),
+    (3, 6),
+    (6, 5),
 ]
 
 num_existing_lines = len(lines)
+assert num_existing_lines, "Incorrect amount of existing lines"
 existing_lines = list(range(len(lines)))
 
 incidence = np.zeros((num_existing_lines, num_nodes))
@@ -332,75 +382,84 @@ incidence = np.zeros((num_existing_lines, num_nodes))
 for line_idx, line in enumerate(lines):
     start, end = sorted(line)
 
-    # Correct for the 1-based indexing in node numbering.
+    # Correct for the 1-based indexing in node numbering (i.e. make it 0-based).
     incidence[line_idx, start - 1] = -1
     incidence[line_idx, end - 1] = 1
 
 F_max = np.array(
     [
         [
-            175,
-            175,
-            350,
-            175,
-            175,
-            175,
-            400,
-            175,
-            350,
-            175,
-            350,
-            175,
-            175,
-            400,
-            400,
-            400,
-            400,
-            500,
-            500,
-            500,
-            500,
-            500,
-            500,
-            500,
-            1000,
-            500,
-            500,
-            500,
-            500,
-            500,
-            1000,
-            1000,
-            1000,
-            500,
+            650,
+            150,
+            600,
+            2145,
+            950,
+            650,
+            150,
+            600,
+            2145,
+            680,
+            590,
+            1700,
+            1480,
+            1200,
+            1480,
+            1200,
+            860,
+            750,
+            1234,
         ]
     ],
     dtype=np.float32,
 )
 
-assert num_existing_lines == len(incidence) == len(F_max[0])
+F_min = np.array(
+    [
+        [
+            -450,
+            -250,
+            -1000,
+            -2095,
+            -1000,
+            -450,
+            -250,
+            -1000,
+            -2095,
+            -740,
+            -600,
+            -1300,
+            -1120,
+            -1200,
+            -1120,
+            -1200,
+            -1016,
+            -779,
+            -684,
+        ]
+    ],
+    dtype=np.float32,
+)
 
-# Generate candidate lines between each pair of nodes.
+assert num_existing_lines == len(incidence) == len(F_max[0]) == len(F_min[0])
+
+# Generate candidate lines between each pair of (real and dummy) nodes.
 line_idx = len(existing_lines)
 candidate_lines = []
-use_candidate_lines = True
+generate_candidate_lines = True
 
-if use_candidate_lines:
-    for line in candidate_line_connections:
-        start, end = sorted(line)
+if generate_candidate_lines:
+    for i in range(num_real_nodes):
+        for j in range(i + 1, num_real_nodes):
+            row = np.zeros((1, num_nodes))
+            row[0, i] = -1.0
+            row[0, j] = 1.0
 
-        # Add a new row to the lines x nodes incidence matrix.
-        row = np.zeros((1, num_nodes))
-        row[0, start - 1] = -1.0
-        row[0, end - 1] = 1.0
+            incidence = np.concatenate((incidence, row), axis=0)
+            F_max = np.concatenate((F_max, [[2000.0]]), axis=1)
+            F_min = np.concatenate((F_min, [[-2000.0]]), axis=1)
 
-        incidence = np.concatenate((incidence, row), axis=0)
-
-        # Line parameters.
-        F_max = np.concatenate((F_max, [[200.0]]), axis=1)
-
-        candidate_lines.append(line_idx)
-        line_idx += 1
+            candidate_lines.append(line_idx)
+            line_idx += 1
 else:
     candidate_lines = []
 
@@ -408,11 +467,12 @@ else:
 lines = existing_lines + candidate_lines
 num_lines = len(lines)
 
-# Augment the transmission capacity array to have expected dimensions.
+# Augment the transmission capacity arrays to have expected dimensions.
 F_max = np.tile(F_max, (num_scenarios, num_hours, 1))
 F_max += np.random.uniform(-10.0, 10.0, (num_scenarios, num_hours, num_lines))
 
-F_min = -F_max  # Same transmission capacity to both directions.
+F_min = np.tile(F_min, (num_scenarios, num_hours, 1))
+F_min += np.random.uniform(-10.0, 10.0, (num_scenarios, num_hours, num_lines))
 
 # Susceptance.
 B = np.ones(num_lines) * 1e3
@@ -420,7 +480,21 @@ B = np.ones(num_lines) * 1e3
 # Reference node.
 ref_node = 0
 
-assert len(incidence) == F_max.shape[-1] == num_lines
+assert len(incidence) == F_max.shape[-1] == F_min.shape[-1] == num_lines
 
 # Equal scenario weights.
 weights = np.ones(num_scenarios) / float(num_scenarios)
+
+# Investment parameters
+discount_factor = 1.10
+
+C_x = {
+    (year, unit): 1e6 * discount_factor ** (-year)
+    for year in years
+    for unit in candidate_units
+}
+C_y = {
+    (year, line): 1e8 * discount_factor ** (-year)
+    for year in years
+    for line in candidate_lines
+}
