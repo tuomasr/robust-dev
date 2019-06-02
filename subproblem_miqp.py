@@ -26,6 +26,7 @@ from common_data import (
     F_min,
     B,
     ref_node,
+    candidate_rates,
     G_ramp_max,
     G_ramp_min,
     incidence,
@@ -69,7 +70,7 @@ if enable_custom_configuration:
     for parameter, value in GRB_PARAMS:
         m.setParam(parameter, value)
 
-K = 100.0
+K = 1000.0
 
 # Demand is fixed for the dummy nodes that do not contain any load.
 # For real nodes that contain load, add hour- and nodewise uncertain demand variables and
@@ -173,7 +174,7 @@ def get_objective(x, y):
         )
         - sum(beta_bar[o, t, u] * G_max[o, t, u] for u in units if unit_built(x, t, u))
         - sum(
-            beta_candidate_bar[o, t, u] * get_candidate_generation_capacity(t, u, x)
+            beta_candidate_bar[o, t, u] * candidate_rates[u][t] * get_candidate_generation_capacity(t, u, x)
             for u in candidate_units
         )
         + sum(

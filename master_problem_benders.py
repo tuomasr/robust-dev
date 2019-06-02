@@ -172,7 +172,7 @@ mp.addConstrs(
     name="line_operational1",
 )
 
-delta = mp.addVar(name="delta", lb=0.0)
+delta = mp.addVars(scenarios, years, name="delta", lb=0.0)
 
 mp.setObjective(get_transmission_investment_cost(yhat) + delta, GRB.MINIMIZE)
 
@@ -213,7 +213,7 @@ def initialize_master():
         mp.update()
 
 
-def augment_master(dual_values, iteration, benders_iteration, d):
+def augment_master(dual_values, iteration, benders_iteration, kk, d):
     # Augment the Benders master problem with a new cut from the slave problem.
 
     # Unpack the dual values. Be careful with the order.
@@ -313,7 +313,7 @@ def augment_master(dual_values, iteration, benders_iteration, d):
                 for v in range(1, iteration + 1)
             )
             >= 0.0,
-            name="delta_constraint_single_cut_%d" % benders_iteration,
+            name="delta_constraint_single_cut_%d_%d_%d" % (iteration, benders_iteration, kk)
         )
     else:
         raise NotImplementedError()
@@ -726,7 +726,7 @@ def obtain_constraints(current_iteration):
     return all_constrs, updatable_constrs
 
 
-def update_slave(updatable_constrs, current_iteration, x, yhat, y):
+def update_slave(updatable_constrs, current_iteration, yhat, y):
     # Update constraints involving the value of x and y. Be careful with the order when unpacking.
     sp.setObjective(get_investment_cost(xhat, yhat) + theta, GRB.MINIMIZE)
 
@@ -867,7 +867,7 @@ def solve_master_problem(current_iteration, d):
     sp.optimize()
     all_constrs, updatable_constrs = obtain_constraints(current_iteration)
     dual_values = get_dual_variables(all_constrs)
-    augment_master(dual_values, current_iteration, 0, d)
+    augment_master(dual_values, current_iteration, 0, 0, d)
 
     solution_hashes = set()
 
@@ -889,13 +889,18 @@ def solve_master_problem(current_iteration, d):
         many_solutions = mp.SolCount > 1
         sol_indices = list(range(mp.SolCount))
 
+        yhats = []
+        ys = []
+
         for k in sol_indices:
             mp.Params.SolutionNumber = k
+
+            mp.update()
 
             if mp.SolCount == 0:
                 break
 
-            xhat, yhat, x, y = get_investment_and_availability_decisions(
+            _, yhat, _, y = get_investment_and_availability_decisions(
                 initial=False, many_solutions=many_solutions
             )
 
@@ -906,7 +911,11 @@ def solve_master_problem(current_iteration, d):
 
             solution_hashes.add(solution_hash)
 
-            update_slave(updatable_constrs, current_iteration, x, yhat, y)
+            yhats.append(yhat)
+            ys.append(y)
+
+        for kk, (yhat, y) in enumerate(zip(yhats, ys)):
+            update_slave(updatable_constrs, current_iteration, yhat, y)
 
             print(separator)
             print("Solving Benders slave problem.")
@@ -921,7 +930,7 @@ def solve_master_problem(current_iteration, d):
 
             gap = compute_objective_gap(lb, ub)
 
-            if k == 0 and gap < threshold:
+            if kk == 0 and gap < threshold:
                 if not gap >= bad_threshold:
                     raise RuntimeError("lb (%f) > ub (%f) in Benders." % (lb, ub))
 
@@ -930,6 +939,6 @@ def solve_master_problem(current_iteration, d):
                 return (ub + lb) / 2, g, s
 
             dual_values = get_dual_variables(all_constrs)
-            augment_master(dual_values, current_iteration, iteration, d)
+            augment_master(dual_values, current_iteration, iteration, kk, d)
 
     raise RuntimeError("Max iterations hit in Benders. LB: %f, UB: %f" % (lb, ub))

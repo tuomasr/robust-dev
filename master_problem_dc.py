@@ -28,6 +28,7 @@ from common_data import (
     F_min,
     B,
     ref_node,
+    candidate_rates,
     G_ramp_max,
     G_ramp_min,
     G_emissions,
@@ -206,7 +207,7 @@ def augment_master_problem(current_iteration, d):
     # Generation constraint for the units.
     m.addConstrs(
         (
-            g[o, t, u, v] - get_candidate_generation_capacity(t, u, x) <= 0.0
+            g[o, t, u, v] - candidate_rates[u][t] * get_candidate_generation_capacity(t, u, x) <= 0.0
             for o in scenarios
             for t in hours
             for u in candidate_units

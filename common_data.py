@@ -1,5 +1,7 @@
 # Define data used by both the master problem and subproblem.
 
+# TODO: discount operation costs, availability rates for all units, maximum storage constraint, existing lines AC/DC
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -39,18 +41,22 @@ uncertainty_demand_increase = 100.0
 uncertainty_budget = 2.0
 
 # Scenarios.
-num_scenarios = 5
+num_scenarios = 3
 scenarios = list(range(num_scenarios))
 
 # Years and hours.
-num_years = 10
-num_hours_per_year = 24
+num_years = 6
+num_hours_per_year = 9
 num_hours = num_years * num_hours_per_year
 
 annualizer = float(num_years) * 365.0 / float(num_hours)
 
 years = list(range(num_years))
 hours = list(range(num_hours))
+
+# Sample starting days for each year.
+start_indices = np.random.randint(0, 364, size=num_years)*24
+end_indices = start_indices + num_hours_per_year
 
 # Nodes.
 # There are 8 "real" nodes and 6 dummy nodes with no generation or load.
@@ -74,21 +80,41 @@ nodes = list(range(num_nodes))
 
 # Load.
 load_real_nodes = np.genfromtxt("load.csv", delimiter=";", skip_header=1)
+load = np.zeros((num_hours, num_real_nodes))
 
-hourly_load = np.zeros((24, num_nodes))
-hourly_load[:, : load_real_nodes.shape[1]] = load_real_nodes
-
-hourly_load = hourly_load[:num_hours_per_year]
-
-assert len(hourly_load) == num_hours_per_year
-
-# num_hours x num_nodes array
-load = np.tile(hourly_load, (num_years, 1))
+# Read load for the sampled days.
+for i, (start, end) in enumerate(zip(start_indices, end_indices)):
+    load_slice = load_real_nodes[start:end]
+    load[i*num_hours_per_year:(i+1)*num_hours_per_year, :] = load_slice
 
 # Units.
 generation_capacities = np.genfromtxt(
     "generation_capacity.csv", delimiter=";", skip_header=1
 )
+
+# Wind and PV production varies with weather conditions. The installed capacity is scaled
+# with a "rate" in [0, 1].
+all_wind_rates = np.genfromtxt(
+    "wind_rates.csv", delimiter=";", skip_header=1,
+)
+all_pv_rates = np.genfromtxt(
+    "pv_rates.csv", delimiter=";", skip_header=1,
+)
+
+# Read wind and PV rates for the sampled days.
+wind_unit_idx = 8
+pv_unit_idx = 9
+
+for i, (start, end) in enumerate(zip(start_indices, end_indices)):
+    wind_slice = all_wind_rates[start:end, 1:]  # Skip first (hour) column.
+    pv_slice = all_pv_rates[start:end, 1:]
+
+    if i == 0:
+        wind_rates = wind_slice
+        pv_rates = pv_slice
+    else:
+        wind_rates = np.concatenate((wind_rates, wind_slice))
+        pv_rates = np.concatenate((pv_rates, pv_slice))
 
 # Compile information about existing units by looping the table of
 # generation capacities (real nodes x generation types).
@@ -263,13 +289,28 @@ num_units = len(units)
 G_max = np.tile(G_max, (num_scenarios, num_hours, 1))
 G_max += np.random.uniform(-10.0, 10.0, (num_scenarios, num_hours, num_units))
 
+# Apply wind and PV rates.
+wind_units = [u for u, t in unit_to_generation_type.items() if t == wind_unit_idx]
+pv_units = [u for u, t in unit_to_generation_type.items() if t == pv_unit_idx]
+
+for u in wind_units:
+    G_max[:, :, u] = np.max(G_max[:, :, u] * wind_rates[:, unit_to_node[u]], 0)
+
+for u in pv_units:
+    G_max[:, :, u] = np.max(G_max[:, :, u] * pv_rates[:, unit_to_node[u]], 0)
+
+# Rates for the candidate units.
+candidate_rates = dict()
+
+for u in candidate_units:
+    candidate_rates[u] = wind_rates[:, unit_to_node[u]]
+
 C_g = np.tile(C_g, (num_scenarios, num_hours, 1))
 
 G_emissions = np.tile(G_emissions, (num_scenarios, num_hours, 1))
 
 # Ramping limits from time step to another (both up- and down-ramp) as a percentage of total
 # generation capacity.
-# TODO: Get proper numbers for these.
 # 0: coal
 # 1: gas
 # 2: ccgt
@@ -293,18 +334,18 @@ generation_type_to_ramp_rate = {
     0: 0.2,
     1: 0.5,
     2: 0.5,
-    3: 0.2,
+    3: 0.7,
     4: 0.2,
-    5: 0.2,
+    5: 0.4,
     6: 0.1,
-    7: 0.8,
-    8: 0.9,
-    9: 0.9,
+    7: 0.3,
+    8: 1.0,
+    9: 1.0,
     10: 0.2,
-    11: 0.5,
-    12: 0.5,
-    13: 0.2,
-    14: 0.2,
+    11: 0.3,
+    12: 0.3,
+    13: 0.7,
+    14: 0.7,
     15: 0.2,
     16: 0.2,
     17: 0.2,
@@ -326,19 +367,39 @@ assert (
     == num_units
 )
 
-# Initial storage levels.
-initial_storage = dict()
-for u in hydro_units:
-    noise = np.random.uniform(0.2, 0.3, (num_scenarios, num_years))
-    mean_max_capacity = np.mean(G_max[:, :, u])
-    initial_storage[u] = noise * mean_max_capacity
+# Set initial hydro reservoir to the weeks which the sampled days belong to.
+# Set maximum hydro reservoir as a new constraint.
+# FI: http://wwwi2.ymparisto.fi/i2/95/fie7814.txt
+# SE: https://www.energiforetagen.se/globalassets/energiforetagen/statistik/el/vecko--och-manadsstatistik/vecka_01-52_2014_ver_a.pdf?v=5Lem8eD7Yda4I_l3j6tHMZx4Gus
+# NO: https://energifaktanorge.no/en/norsk-energiforsyning/kraftproduksjon/
+# LV, LT: Entso-e
 
-# Inflows.
-inflows = dict()
-for u in hydro_units:
-    noise = np.random.uniform(0.2, 0.3, (num_scenarios, num_hours))
-    mean_max_capacity = np.mean(G_max[:, :, u])
-    inflows[u] = noise * mean_max_capacity
+weekly_inflow = np.genfromtxt("inflow.csv", delimiter=";", skip_header=1)
+weekly_reservoir = np.genfromtxt("reservoir.csv", delimiter=";", skip_header=1)
+
+initial_storage = {u: np.zeros((num_scenarios, num_years)) for u in hydro_units}
+inflows = {u: np.zeros((num_scenarios, num_hours)) for u in hydro_units}
+
+# Map FI, NO, SE to columns in the inflow and reservoir CSV files.
+nodemap = {3: 0, 4: 1, 5: 2, 6: 1, 7: 2}
+
+for y, idx in enumerate(start_indices):
+    week = int(idx / (7 * 24))     # Fix. 01/01/2014 is Wednesday.
+
+    for u in hydro_units:
+        n = nodemap[unit_to_node[u]]
+        initial_storage[u][:, y] = weekly_reservoir[week, n]
+        # Convert weekly inflow to hourly.
+        inflows[u][:, y*num_hours_per_year:(y+1)+num_hours_per_year] = weekly_inflow[week, n] / (24 * 7)
+
+# TODO
+# Maximum storage levels.
+max_storage_by_node = {n: 0.0 for n in real_nodes}
+# Max
+max_storage_by_node[3] = 3950
+max_storage_by_node[6] = 69430
+max_storage_by_node[7] = 25140
+max_storage = dict()
 
 # Build lines x nodes incidence matrix for existing lines.
 # List pairs of nodes that are connected. Note: these are in 1-based indexing.
@@ -372,6 +433,9 @@ lines = [
     (3, 6),
     (6, 5),
 ]
+
+# These lines are DC. Others are AC.
+dc_lines = [4, 9, 10, 13, 15, 16]
 
 num_existing_lines = len(lines)
 assert num_existing_lines, "Incorrect amount of existing lines"
