@@ -21,6 +21,8 @@ from common_data import (
     existing_lines,
     candidate_units,
     candidate_lines,
+    ac_lines,
+    ac_nodes,
     hydro_units,
     G_max,
     F_max,
@@ -114,7 +116,7 @@ def add_primal_variables(sp, iteration):
     delta = sp.addVars(
         scenarios,
         hours,
-        nodes,
+        ac_nodes,
         [iteration],
         name="voltage_angle_%d" % iteration,
         lb=-GRB.INFINITY,
@@ -267,8 +269,8 @@ def augment_master(
                         for u in units
                     )
                     + sum(d[t, n, v] * sigma[o, t, n, v] for n in real_nodes)
-                    + sum(np.pi * rho_underline[o, t, n, v] for n in nodes)
-                    + sum(np.pi * rho_bar[o, t, n, v] for n in nodes)
+                    + sum(np.pi * rho_underline[o, t, n, v] for n in ac_nodes)
+                    + sum(np.pi * rho_bar[o, t, n, v] for n in ac_nodes)
                     + sum(
                         (
                             initial_storage[u][o, to_year(t)]
@@ -331,8 +333,8 @@ def augment_master(
                         for u in units
                     )
                     + sum(d[t, n, v] * sigma[o, t, n, v] for n in real_nodes)
-                    + sum(np.pi * rho_underline[o, t, n, v] for n in nodes)
-                    + sum(np.pi * rho_bar[o, t, n, v] for n in nodes)
+                    + sum(np.pi * rho_underline[o, t, n, v] for n in ac_nodes)
+                    + sum(np.pi * rho_bar[o, t, n, v] for n in ac_nodes)
                     + sum(
                         (
                             initial_storage[u][o, to_year(t)]
@@ -461,6 +463,7 @@ def augment_slave(current_iteration, d, yhat, y):
             for o in scenarios
             for t in hours
             for l in existing_lines
+            if l in ac_lines
         ),
         name="power_flow_existing_%d" % current_iteration,
     )
@@ -530,12 +533,12 @@ def augment_slave(current_iteration, d, yhat, y):
 
     # Voltage angle constraints.
     sp.addConstrs(
-        (delta[o, t, n, v] <= np.pi for o in scenarios for t in hours for n in nodes),
+        (delta[o, t, n, v] <= np.pi for o in scenarios for t in hours for n in ac_nodes),
         name="voltage_angle_ub_%d" % current_iteration,
     )
 
     sp.addConstrs(
-        (-delta[o, t, n, v] <= np.pi for o in scenarios for t in hours for n in nodes),
+        (-delta[o, t, n, v] <= np.pi for o in scenarios for t in hours for n in ac_nodes),
         name="voltage_angle_lb_%d" % current_iteration,
     )
 
@@ -566,11 +569,12 @@ def obtain_constraints(current_iteration):
                     name = "balance_%d[%d,%d,%d]" % (v, o, t, n)
                     sigma_constrs[o, t, n, v] = sp.getConstrByName(name)
 
-                    lb_name = "voltage_angle_lb_%d[%d,%d,%d]" % (v, o, t, n)
-                    ub_name = "voltage_angle_ub_%d[%d,%d,%d]" % (v, o, t, n)
+                    if n in ac_nodes:
+                        lb_name = "voltage_angle_lb_%d[%d,%d,%d]" % (v, o, t, n)
+                        ub_name = "voltage_angle_ub_%d[%d,%d,%d]" % (v, o, t, n)
 
-                    rho_underline_constrs[o, t, n, v] = sp.getConstrByName(lb_name)
-                    rho_bar_constrs[o, t, n, v] = sp.getConstrByName(ub_name)
+                        rho_underline_constrs[o, t, n, v] = sp.getConstrByName(lb_name)
+                        rho_bar_constrs[o, t, n, v] = sp.getConstrByName(ub_name)
 
                 for u in units:
                     name = "maximum_generation_%d[%d,%d,%d]" % (v, o, t, u)

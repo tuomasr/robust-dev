@@ -37,7 +37,7 @@ master_problem_timer = Timer()
 subproblem_timer = Timer()
 
 # Threshold for algorithm convergence.
-EPSILON = 1e-6  # From Minguez et al. (2016)
+EPSILON = 1e-8  # From Minguez et al. (2016)
 
 # Numerical precision issues can cause LB to become higher than UB in some cases.
 # This threshold allows some slack but an error is raised if the threshold is exceeded.
