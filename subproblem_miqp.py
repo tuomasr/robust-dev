@@ -40,6 +40,7 @@ from common_data import (
     emission_targets,
     G_emissions,
     years,
+    discount_factor,
     subproblem_method,
     enable_custom_configuration,
     GRB_PARAMS,
@@ -324,7 +325,7 @@ def set_dependent_constraints(x, y):
             + (beta_ramp_underline[o, t - 1, u] if not is_year_first_hour(t) else 0.0)
             - (beta_ramp_underline[o, t, u] if not is_year_last_hour(t) else 0.0)
             - (beta_emissions[o, to_year(t)] * G_emissions[o, t, u])
-            - C_g[o, t, u] * weights[o]
+            - discount_factor ** (-to_year(t)) * C_g[o, t, u] * weights[o]
             == 0.0
             for o in scenarios
             for t in hours
