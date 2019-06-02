@@ -42,6 +42,7 @@ from common_data import (
     emission_targets,
     C_x,
     C_y,
+    discount_factor,
     master_method,
     enable_custom_configuration,
     GRB_PARAMS,
@@ -384,7 +385,7 @@ def augment_slave(current_iteration, d, yhat, y):
     sp.addConstr(
         theta
         - sum(
-            sum(sum(C_g[o, t, u] * g[o, t, u, v] for u in units) for t in hours)
+            sum(discount_factor ** (-to_year(t)) * sum(C_g[o, t, u] * g[o, t, u, v] for u in units) for t in hours)
             * weights[o]
             for o in scenarios
         )
@@ -758,7 +759,7 @@ def solve_master_problem(current_iteration, d):
         return -np.inf, None, None
 
     max_iterations = 9999
-    threshold = 1e-6
+    threshold = 1e-8
     bad_threshold = -1e-3
     separator = "-" * 50
 
