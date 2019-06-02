@@ -22,6 +22,8 @@ from common_data import (
     existing_lines,
     candidate_units,
     candidate_lines,
+    ac_lines,
+    ac_nodes,
     hydro_units,
     G_max,
     F_max,
@@ -109,7 +111,7 @@ def add_primal_variables(iteration):
     delta = m.addVars(
         scenarios,
         hours,
-        nodes,
+        ac_nodes,   # Nodes that are part of the AC circuit.
         [iteration],
         name="voltage_angle_%d" % iteration,
         lb=-np.pi,
@@ -260,6 +262,7 @@ def augment_master_problem(current_iteration, d):
             for o in scenarios
             for t in hours
             for l in existing_lines
+            if l in ac_lines
         ),
         name="power_flow_existing_%d" % current_iteration,
     )

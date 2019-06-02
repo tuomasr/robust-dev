@@ -20,6 +20,8 @@ from common_data import (
     existing_lines,
     candidate_units,
     candidate_lines,
+    ac_lines,
+    ac_nodes,
     hydro_units,
     G_max,
     F_max,
@@ -141,7 +143,7 @@ beta_emissions = m.addVars(
 )
 
 # Transmission flow dual variables.
-phi = m.addVars(scenarios, hours, lines, name="dual_flow", lb=lb2, ub=ub2)
+phi = m.addVars(scenarios, hours, ac_lines, name="dual_flow", lb=lb2, ub=ub2)
 
 # Maximum and minimum transmission flow dual variables.
 mu_bar = m.addVars(scenarios, hours, lines, name="dual_maximum_flow", lb=0.0, ub=ub1)
@@ -151,10 +153,10 @@ mu_underline = m.addVars(
 
 # Dual variables for voltage angle bounds.
 mu_angle_bar = m.addVars(
-    scenarios, hours, nodes, name="dual_maximum_angle", lb=0.0, ub=ub1
+    scenarios, hours, ac_nodes, name="dual_maximum_angle", lb=0.0, ub=ub1
 )
 mu_angle_underline = m.addVars(
-    scenarios, hours, nodes, name="dual_minimum_angle", lb=0.0, ub=ub1
+    scenarios, hours, ac_nodes, name="dual_minimum_angle", lb=0.0, ub=ub1
 )
 
 # Dual variable for the reference node voltage angle.
@@ -193,7 +195,7 @@ def get_objective(x, y):
             if line_built(y, t, l)
         )
         - sum(
-            np.pi * (mu_angle_bar[o, t, n] + mu_angle_underline[o, t, n]) for n in nodes
+            np.pi * (mu_angle_bar[o, t, n] + mu_angle_underline[o, t, n]) for n in ac_nodes
         )
         - sum(
             beta_ramp_bar[o, t, u] * G_ramp_max[o, t, u] if t in ramp_hours else 0.0
@@ -275,11 +277,11 @@ def set_dependent_constraints(x, y):
     m.addConstrs(
         (
             -sum(
-                (B[l] * phi[o, t, l] if l in existing_lines else 0.0)
+                (B[l] * phi[o, t, l] if l in existing_lines and l in ac_lines else 0.0)
                 for l in get_lines_starting(n)
             )
             + sum(
-                (B[l] * phi[o, t, l] if l in existing_lines else 0.0)
+                (B[l] * phi[o, t, l] if l in existing_lines and l in ac_lines else 0.0)
                 for l in get_lines_ending(n)
             )
             - mu_angle_bar[o, t, n]
@@ -288,7 +290,7 @@ def set_dependent_constraints(x, y):
             == 0.0
             for o in scenarios
             for t in hours
-            for n in nodes
+            for n in ac_nodes
         ),
         name="voltage_angle_dual_constraint",
     )
@@ -297,7 +299,7 @@ def set_dependent_constraints(x, y):
         (
             (
                 sum(incidence[l, n] * lambda_[o, t, n] for n in nodes)
-                + (phi[o, t, l] if l in existing_lines else 0.0)
+                + (phi[o, t, l] if l in existing_lines and l in ac_lines else 0.0)
                 - mu_bar[o, t, l]
                 + mu_underline[o, t, l]
             )

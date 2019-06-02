@@ -434,8 +434,9 @@ lines = [
     (6, 5),
 ]
 
-# These lines are DC. Others are AC.
-dc_lines = [4, 9, 10, 13, 15, 16]
+# Lists for AC and DC lines.
+dc_lines = set([4, 9, 10, 13, 15, 16])
+ac_lines = set(range(len(lines))) - dc_lines
 
 num_existing_lines = len(lines)
 assert num_existing_lines, "Incorrect amount of existing lines"
@@ -443,12 +444,23 @@ existing_lines = list(range(len(lines)))
 
 incidence = np.zeros((num_existing_lines, num_nodes))
 
+ac_nodes = set()    # The set of nodes which are part of the AC circuit.
+dc_nodes = set()
+
 for line_idx, line in enumerate(lines):
     start, end = sorted(line)
-
     # Correct for the 1-based indexing in node numbering (i.e. make it 0-based).
-    incidence[line_idx, start - 1] = -1
-    incidence[line_idx, end - 1] = 1
+    start, end = start - 1, end - 1
+
+    incidence[line_idx, start] = -1
+    incidence[line_idx, end] = 1
+
+    if line_idx in ac_lines:
+        ac_nodes.add(start)
+        ac_nodes.add(end)
+    else:
+        dc_nodes.add(start)
+        dc_nodes.add(end)
 
 F_max = np.array(
     [
@@ -523,6 +535,12 @@ if generate_candidate_lines:
             F_min = np.concatenate((F_min, [[-2000.0]]), axis=1)
 
             candidate_lines.append(line_idx)
+
+            # Assume all candidate lines are DC.
+            dc_lines.add(line_idx)
+            dc_nodes.add(i)
+            dc_nodes.add(j)
+
             line_idx += 1
 else:
     candidate_lines = []
@@ -542,7 +560,7 @@ F_min += np.random.uniform(-10.0, 10.0, (num_scenarios, num_hours, num_lines))
 B = np.ones(num_lines) * 1e3
 
 # Reference node.
-ref_node = 0
+ref_node = 1
 
 assert len(incidence) == F_max.shape[-1] == F_min.shape[-1] == num_lines
 
