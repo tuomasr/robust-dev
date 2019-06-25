@@ -1,6 +1,6 @@
 # Define data used by both the master problem and subproblem.
 
-# TODO: discount operation costs, availability rates for all units, maximum storage constraint, existing lines AC/DC
+# TODO: maximum storage constraint?
 
 from __future__ import absolute_import
 from __future__ import division
@@ -45,8 +45,8 @@ num_scenarios = 3
 scenarios = list(range(num_scenarios))
 
 # Years and hours.
-num_years = 6
-num_hours_per_year = 9
+num_years = 10
+num_hours_per_year = 24
 num_hours = num_years * num_hours_per_year
 
 annualizer = float(num_years) * 365.0 / float(num_hours)
@@ -162,7 +162,8 @@ G_max = np.array([np.array(G_max)], dtype=np.float32)
 # 17: peat-e
 
 # Hydro units are treated specially because they act as a storage.
-hydro_units = [u for u, t in unit_to_generation_type.items() if t == 7]
+hydro_unit_idx = 7
+hydro_units = [u for u, t in unit_to_generation_type.items() if t == hydro_unit_idx]
 
 # Generation costs.
 generation_type_to_cost = {
@@ -240,7 +241,7 @@ for u in existing_units:
     G_emissions = np.append(G_emissions, [emissions])
 
 # Maximum emissions by year.
-start_emissions = 50000.0
+start_emissions = 100000.0
 final_emissions = 5000.0
 emission_targets = np.linspace(start_emissions, final_emissions, num_years)
 
@@ -298,6 +299,51 @@ for u in wind_units:
 
 for u in pv_units:
     G_max[:, :, u] = np.max(G_max[:, :, u] * pv_rates[:, unit_to_node[u]], 0)
+
+# Apply rates for other generation types.
+# 0: coal
+# 1: gas
+# 2: ccgt
+# 3: oil
+# 4: biomass
+# 5: oil shale
+# 6: nuclear
+# 7: hydro
+# 8: wind
+# 9: pv
+# different chp types (e=extraction, b=back pressure):
+# 10: coal-e
+# 11: gas-b
+# 12: gas-e
+# 13: oil-b
+# 14: oil-e
+# 15: biomass-e
+# 16: waste-e
+# 17: peat-e
+rates = {
+    0: 0.9,
+    1: 0.95,
+    2: 0.8,
+    3: 0.86,
+    4: 0.95,
+    5: 0.9,
+    6: 0.9,
+    # Hydro, wind, pv are handled separately.
+    10: 0.9 / 2.74,
+    11: 0.95 / 2.29,
+    12: 0.95 / 1.85,
+    13: 0.95 / 2.29,
+    14: 0.95 / 1.85,
+    15: 0.95 / 3.35,
+    16: 0.9 / 4.64,
+    17: 0.95 / 3.35
+}
+
+for u in units:
+    t = unit_to_generation_type[u]
+    if t in rates.keys():
+        G_max[:, :, u] *= rates[t]
+
 
 # Rates for the candidate units.
 candidate_rates = dict()
@@ -380,26 +426,18 @@ weekly_reservoir = np.genfromtxt("reservoir.csv", delimiter=";", skip_header=1)
 initial_storage = {u: np.zeros((num_scenarios, num_years)) for u in hydro_units}
 inflows = {u: np.zeros((num_scenarios, num_hours)) for u in hydro_units}
 
-# Map FI, NO, SE to columns in the inflow and reservoir CSV files.
-nodemap = {3: 0, 4: 1, 5: 2, 6: 1, 7: 2}
+# Map FI, LT, LV, NO, SE to columns in the inflow and reservoir CSV files.
+nodemap = {3: 0, 4: 1, 5: 2, 6: 3, 7: 4}
 
 for y, idx in enumerate(start_indices):
     week = int(idx / (7 * 24))     # Fix. 01/01/2014 is Wednesday.
 
     for u in hydro_units:
         n = nodemap[unit_to_node[u]]
+
         initial_storage[u][:, y] = weekly_reservoir[week, n]
         # Convert weekly inflow to hourly.
-        inflows[u][:, y*num_hours_per_year:(y+1)+num_hours_per_year] = weekly_inflow[week, n] / (24 * 7)
-
-# TODO
-# Maximum storage levels.
-max_storage_by_node = {n: 0.0 for n in real_nodes}
-# Max
-max_storage_by_node[3] = 3950
-max_storage_by_node[6] = 69430
-max_storage_by_node[7] = 25140
-max_storage = dict()
+        inflows[u][:, y*num_hours_per_year:(y+1)+num_hours_per_year] = weekly_inflow[week, n] / 168
 
 # Build lines x nodes incidence matrix for existing lines.
 # List pairs of nodes that are connected. Note: these are in 1-based indexing.

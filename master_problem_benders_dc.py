@@ -183,7 +183,7 @@ mp.addConstrs(
 #     name="line_operational2",
 # )
 
-delta = mp.addVar(name="delta", lb=0.0)
+delta = mp.addVar(name="delta", lb=0.0, ub=GRB.INFINITY)
 
 mp.setObjective(get_transmission_investment_cost(yhat) + delta, GRB.MINIMIZE)
 

@@ -298,6 +298,12 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
             bbox_inches="tight",
         )
 
+    # Plot investments.
+    plot_investments = True
+
+    #if plot_investments:
+
+
 
 def main():
     # Run robust optimization.
