@@ -71,6 +71,7 @@ end_indices = start_indices + num_hours_per_year
 # 6: no
 # 7: se
 # 8-13: dummy nodes
+real_node_names = ["DK1", "DK2", "EE", "FI", "LT", "LV", "NO", "SE"]
 
 num_real_nodes = 8
 real_nodes = list(range(num_real_nodes))
@@ -267,7 +268,7 @@ if generate_candidate_units:
         emissions = generation_type_to_emissions[generation_type]
 
         C_g = np.append(C_g, [cost * np.random.uniform(1.0, 1.0)])
-        G_max = np.concatenate((G_max, [[10000.0]]), axis=1)
+        G_max = np.concatenate((G_max, [[100000.0]]), axis=1)
         G_emissions = np.append(G_emissions, [emissions])
         unit_idx += 1
 
@@ -435,9 +436,11 @@ for y, idx in enumerate(start_indices):
     for u in hydro_units:
         n = nodemap[unit_to_node[u]]
 
-        initial_storage[u][:, y] = weekly_reservoir[week, n]
+        h1 = y*num_hours_per_year
+        h2 = (y+1)*num_hours_per_year
+        initial_storage[u][:, y] = np.max(G_max[:, h1:h2, u]) * 2 # weekly_reservoir[week, n]
         # Convert weekly inflow to hourly.
-        inflows[u][:, y*num_hours_per_year:(y+1)+num_hours_per_year] = weekly_inflow[week, n] / 168
+        inflows[u][:, h1:h2] = weekly_inflow[week, n] / 168
 
 # Build lines x nodes incidence matrix for existing lines.
 # List pairs of nodes that are connected. Note: these are in 1-based indexing.
@@ -556,30 +559,57 @@ F_min = np.array(
 
 assert num_existing_lines == len(incidence) == len(F_max[0]) == len(F_min[0])
 
-# Generate candidate lines between each pair of (real and dummy) nodes.
+# Generate candidate lines between each pair of real nodes.
 line_idx = len(existing_lines)
 candidate_lines = []
+candidate_line_capacity = 2000.0
 generate_candidate_lines = True
+
+num_build_options = 2
+
+# 0: dk1
+# 1: dk2
+# 2: ee
+# 3: fi
+# 4: lt
+# 5: lv
+# 6: no
+# 7: se
+neighbors = {
+    0: [1, 6, 7],
+    1: [1, 6, 7],
+    2: [3, 5],
+    3: [7, 2, 6],
+    4: [5],
+    5: [2, 4],
+    6: [0, 1, 3, 7],
+    7: [0, 1, 3, 6],
+}
 
 if generate_candidate_lines:
     for i in range(num_real_nodes):
         for j in range(i + 1, num_real_nodes):
-            row = np.zeros((1, num_nodes))
-            row[0, i] = -1.0
-            row[0, j] = 1.0
+            # line can be only built if the two real nodes are neighbors, i.e., their
+            # distance is not too high.
+            if j in neighbors[i]:
+                # num_build_options lines can be built between each pair of nodes.
+                for _ in range(num_build_options):
+                    row = np.zeros((1, num_nodes))
+                    row[0, i] = -1.0
+                    row[0, j] = 1.0
 
-            incidence = np.concatenate((incidence, row), axis=0)
-            F_max = np.concatenate((F_max, [[2000.0]]), axis=1)
-            F_min = np.concatenate((F_min, [[-2000.0]]), axis=1)
+                    incidence = np.concatenate((incidence, row), axis=0)
+                    F_max = np.concatenate((F_max, [[candidate_line_capacity]]), axis=1)
+                    F_min = np.concatenate((F_min, [[-candidate_line_capacity]]), axis=1)
 
-            candidate_lines.append(line_idx)
+                    candidate_lines.append(line_idx)
 
-            # Assume all candidate lines are DC.
-            dc_lines.add(line_idx)
-            dc_nodes.add(i)
-            dc_nodes.add(j)
+                    # Assume all candidate lines are DC.
+                    dc_lines.add(line_idx)
+                    dc_nodes.add(i)
+                    dc_nodes.add(j)
 
-            line_idx += 1
+                    line_idx += 1
 else:
     candidate_lines = []
 
