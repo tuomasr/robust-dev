@@ -663,7 +663,7 @@ def get_investment_and_availability_decisions(initial=False, many_solutions=Fals
     current_x = dict()
     current_y = dict()
 
-    initial_generation_investment = 500.0
+    initial_generation_investment = 10000.0
     initial_transmission_investment = 1.0
 
     for t in years:

@@ -28,6 +28,7 @@ from helpers import (
     concatenate_to_uncertain_variables_array,
     Timer,
 )
+from plotting import create_investment_plots, create_emission_plots
 
 # Configure the algorithm for solving the robust optimization problem.
 MAX_ITERATIONS = 7
@@ -170,23 +171,6 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
             )
             break
 
-    # Report solution.
-    print_primal_variables = False
-
-    if print_primal_variables:
-        print("Primal variables:")
-        print(separator)
-        for v in master_problem.getVars():
-            print(v.varName, v.x)
-
-    print_uncertain_variables = True
-
-    if print_uncertain_variables:
-        print(separator)
-        print("Uncertain variables:")
-        print(separator)
-        print(get_uncertainty_decisions())
-
     # Report if the algorithm converged.
     print(separator)
 
@@ -216,6 +200,23 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
         sum(master_problem_timer.solution_times + subproblem_timer.solution_times),
     )
 
+    # Report solution.
+    print_primal_variables = False
+
+    if print_primal_variables:
+        print("Primal variables:")
+        print(separator)
+        for v in master_problem.getVars():
+            print(v.varName, v.x)
+
+    print_uncertain_variables = True
+
+    if print_uncertain_variables:
+        print(separator)
+        print("Uncertain variables:")
+        print(separator)
+        print(get_uncertainty_decisions())
+
     print("xhat")
     for key, val in xhat.items():
         if val > 0.0:
@@ -234,6 +235,13 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
             print(key, val)
     print("----")
 
+    # Plot investments.
+    plot_investments = True
+
+    if plot_investments:
+        create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_algorithm)
+
+    # Check if ramping constraints were active.
     up_ramp_active = False
     down_ramp_active = False
 
@@ -265,44 +273,8 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
 
     if plot_emissions:
         emissions = get_emissions(g)
-        plt.figure()
-
-        markers = ["ro--", "bs--", "kx--", "yd--", "c*--", "m^--"]
-
-        for i, o in enumerate(scenarios):
-            plt.plot(years, emissions[o, :], markers[i], label="Oper. cond. %d" % o)
-
-        plt.xlabel("master problem time step")
-        plt.ylabel("emissions (tonne)")
-        lgd = plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-        plt.savefig(
-            "emissions_trajectory_%s_%s.png"
-            % (master_problem_algorithm, subproblem_algorithm),
-            bbox_extra_artists=(lgd,),
-            bbox_inches="tight",
-        )
-
-        # Emission prices plot.
-        plt.figure()
-        for i, o in enumerate(scenarios):
-            price_list = [emission_prices[o, y] for y in years]
-            plt.plot(years, price_list, markers[i], label="Oper. cond. %d" % o)
-
-        plt.xlabel("master problem time step")
-        plt.ylabel("emissions price (EUR/tonne)")
-        lgd = plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-        plt.savefig(
-            "emissions_prices_trajectory_%s_%s.png"
-            % (master_problem_algorithm, subproblem_algorithm),
-            bbox_extra_artists=(lgd,),
-            bbox_inches="tight",
-        )
-
-    # Plot investments.
-    plot_investments = True
-
-    #if plot_investments:
-
+        create_emission_plots(emissions, emission_prices,
+                              master_problem_algorithm, subproblem_algorithm)
 
 
 def main():
