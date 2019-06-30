@@ -26,6 +26,7 @@ from common_data import (
     ac_nodes,
     hydro_units,
     G_max,
+    maximum_candidate_unit_capacity,
     F_max,
     F_min,
     B,
@@ -342,7 +343,7 @@ def get_investment_and_availability_decisions(initial=False):
     current_x = dict()
     current_y = dict()
 
-    initial_generation_investment = 10000.0
+    initial_generation_investment = maximum_candidate_unit_capacity
     initial_transmission_investment = 1.0
 
     for t in years:

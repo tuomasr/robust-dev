@@ -191,7 +191,7 @@ generation_type_to_cost = {
 C_g = np.array([], dtype=np.float32)
 for u in existing_units:
     cost = generation_type_to_cost[unit_to_generation_type[u]]
-    C_g = np.append(C_g, [cost * np.random.uniform(1.0, 1.0)])
+    C_g = np.append(C_g, [cost * np.random.uniform(0.8, 1.2)])
 
 # Greenhouse gas emissions.
 # The first figure is emissions factor in kg/kWh, which is the same as tonne/MWh.
@@ -243,7 +243,7 @@ for u in existing_units:
 
 # Maximum emissions by year.
 start_emissions = 100000.0
-final_emissions = 5000.0
+final_emissions = 10000.0
 emission_targets = np.linspace(start_emissions, final_emissions, num_years)
 
 assert len(emission_targets) == num_years
@@ -254,6 +254,7 @@ candidate_unit_to_node = dict()
 unit_idx = len(existing_units)
 
 generate_candidate_units = True
+maximum_candidate_unit_capacity = 20000
 
 if generate_candidate_units:
     for node_idx, node in enumerate(real_nodes):
@@ -267,8 +268,8 @@ if generate_candidate_units:
         cost = generation_type_to_cost[generation_type]
         emissions = generation_type_to_emissions[generation_type]
 
-        C_g = np.append(C_g, [cost * np.random.uniform(1.0, 1.0)])
-        G_max = np.concatenate((G_max, [[100000.0]]), axis=1)
+        C_g = np.append(C_g, [cost * np.random.uniform(0.8, 1.2)])
+        G_max = np.concatenate((G_max, [[maximum_candidate_unit_capacity]]), axis=1)
         G_emissions = np.append(G_emissions, [emissions])
         unit_idx += 1
 
@@ -289,17 +290,18 @@ num_units = len(units)
 
 # Augment the arrays to have correct dimensions.
 G_max = np.tile(G_max, (num_scenarios, num_hours, 1))
-G_max += np.random.uniform(-10.0, 10.0, (num_scenarios, num_hours, num_units))
+G_max += np.random.uniform(-50.0, 50.0, (num_scenarios, num_hours, num_units))
+G_max[:, :, :] = np.maximum(G_max[:, :, :], 0.0)
 
 # Apply wind and PV rates.
 wind_units = [u for u, t in unit_to_generation_type.items() if t == wind_unit_idx]
 pv_units = [u for u, t in unit_to_generation_type.items() if t == pv_unit_idx]
 
 for u in wind_units:
-    G_max[:, :, u] = np.max(G_max[:, :, u] * wind_rates[:, unit_to_node[u]], 0)
+    G_max[:, :, u] = np.maximum(G_max[:, :, u] * wind_rates[:, unit_to_node[u]], 0.0)
 
 for u in pv_units:
-    G_max[:, :, u] = np.max(G_max[:, :, u] * pv_rates[:, unit_to_node[u]], 0)
+    G_max[:, :, u] = np.maximum(G_max[:, :, u] * pv_rates[:, unit_to_node[u]], 0.0)
 
 # Apply rates for other generation types.
 # 0: coal
@@ -565,7 +567,7 @@ candidate_lines = []
 candidate_line_capacity = 2000.0
 generate_candidate_lines = True
 
-num_build_options = 2
+num_build_options = 1
 
 # 0: dk1
 # 1: dk2
@@ -619,10 +621,12 @@ num_lines = len(lines)
 
 # Augment the transmission capacity arrays to have expected dimensions.
 F_max = np.tile(F_max, (num_scenarios, num_hours, 1))
-F_max += np.random.uniform(-10.0, 10.0, (num_scenarios, num_hours, num_lines))
+F_max += np.random.uniform(-50.0, 10.0, (num_scenarios, num_hours, num_lines))
+F_max[:, :, :] = np.maximum(F_max[:, :, :], 0.0)
 
 F_min = np.tile(F_min, (num_scenarios, num_hours, 1))
-F_min += np.random.uniform(-10.0, 10.0, (num_scenarios, num_hours, num_lines))
+F_min += np.random.uniform(-10.0, 50.0, (num_scenarios, num_hours, num_lines))
+F_min[:, :, :] = np.minimum(F_min[:, :, :], 0.0)
 
 # Susceptance.
 B = np.ones(num_lines) * 1e3
