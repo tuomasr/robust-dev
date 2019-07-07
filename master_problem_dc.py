@@ -26,15 +26,13 @@ from common_data import (
     ac_nodes,
     hydro_units,
     unit_to_node,
+    unit_to_generation_type,
     G_max,
     maximum_candidate_unit_capacity,
     F_max,
     F_min,
     B,
     ref_node,
-    candidate_rates,
-    G_ramp_max,
-    G_ramp_min,
     G_emissions,
     C_g,
     initial_storage,
@@ -59,13 +57,11 @@ from helpers import (
     get_ramp_hours,
     get_start_node,
     get_end_node,
-    get_candidate_generation_capacity,
+    get_effective_capacity,
+    get_maximum_ramp,
     is_year_first_hour,
     is_year_last_hour,
 )
-
-
-EMISSION_CONSTRAINTS_NAME = "maximum_emissions"
 
 
 def get_investment_cost(xhat, yhat):
@@ -163,6 +159,14 @@ m.addConstrs(
 
 m.addConstrs(
     (
+        sum(xhat[t, u] for t in years) <= maximum_candidate_unit_capacity
+        for u in candidate_units
+    ),
+    name="maximum_unit_investment",
+)
+
+m.addConstrs(
+    (
         y[t, l] - sum(yhat[tt, l] for tt in range(t + 1)) == 0.0
         for t in years
         for l in candidate_lines
@@ -215,17 +219,7 @@ def augment_master_problem(current_iteration, d):
     # Generation constraint for the units.
     m.addConstrs(
         (
-            g[o, t, u, v] - candidate_rates[u][t] * get_candidate_generation_capacity(t, u, x) <= 0.0
-            for o in scenarios
-            for t in hours
-            for u in candidate_units
-        ),
-        name="maximum_candidate_generation_%d" % current_iteration,
-    )
-
-    m.addConstrs(
-        (
-            g[o, t, u, v] - G_max[o, t, u] <= 0.0
+            g[o, t, u, v] - get_effective_capacity(o, t, u, x) <= 0.0
             for o in scenarios
             for t in hours
             for u in units
@@ -324,7 +318,7 @@ def augment_master_problem(current_iteration, d):
     # Maximum ramp downwards.
     m.addConstrs(
         (
-            G_ramp_min[o, t, u] - g[o, t + 1, u, v] + g[o, t, u, v] <= 0.0
+            -get_maximum_ramp(o, t, u, x) - g[o, t + 1, u, v] + g[o, t, u, v] <= 0.0
             for o in scenarios
             for t in ramp_hours
             for u in units
@@ -335,7 +329,7 @@ def augment_master_problem(current_iteration, d):
     # Maximum ramp upwards.
     m.addConstrs(
         (
-            g[o, t + 1, u, v] - g[o, t, u, v] - G_ramp_max[o, t, u] <= 0.0
+            g[o, t + 1, u, v] - g[o, t, u, v] - get_maximum_ramp(o, t, u, x) <= 0.0
             for o in scenarios
             for t in ramp_hours
             for u in units
@@ -354,7 +348,7 @@ def augment_master_problem(current_iteration, d):
             for o in scenarios
             for y in years
         ),
-        name=EMISSION_CONSTRAINTS_NAME + "_%d" % current_iteration,
+        name="maximum_emissions_%d" % current_iteration,
     )
 
     return g, s

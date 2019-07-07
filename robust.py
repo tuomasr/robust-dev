@@ -25,13 +25,12 @@ from common_data import (
     storage_change_ub,
     candidate_units,
     candidate_lines,
-    G_ramp_max,
-    G_ramp_min,
 )
 from helpers import (
     compute_objective_gap,
     concatenate_to_uncertain_variables_array,
     Timer,
+    get_maximum_ramp,
 )
 from plotting import create_investment_plots, create_emission_plots
 
@@ -255,10 +254,12 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
             for t in hours[1:-1]:
                 gen_diff = g[o, t, u, iteration].x - g[o, t - 1, u, iteration].x
 
-                if np.isclose(gen_diff, G_ramp_max[o, t, u]):
+                max_ramp = get_maximum_ramp(o, t, u, x)
+
+                if np.isclose(gen_diff, max_ramp):
                     up_ramp_active = True
 
-                if np.isclose(gen_diff, G_ramp_min[o, t, u]):
+                if np.isclose(gen_diff, -max_ramp):
                     down_ramp_active = True
 
     print("up_ramp", up_ramp_active)

@@ -28,9 +28,6 @@ from common_data import (
     F_min,
     B,
     ref_node,
-    candidate_rates,
-    G_ramp_max,
-    G_ramp_min,
     incidence,
     weights,
     C_g,
@@ -57,7 +54,8 @@ from helpers import (
     is_year_last_hour,
     get_lines_starting,
     get_lines_ending,
-    get_candidate_generation_capacity,
+    get_effective_capacity,
+    get_maximum_ramp,
     get_ramp_hours,
 )
 
@@ -75,7 +73,7 @@ if enable_custom_configuration:
     for parameter, value in GRB_PARAMS:
         m.setParam(parameter, value)
 
-K = 1000.0
+K = 10000.0
 
 # Demand is fixed for the dummy nodes that do not contain any load.
 # For real nodes that contain load, add hour- and nodewise uncertain demand variables and
@@ -97,14 +95,6 @@ ub2 = GRB.INFINITY
 
 beta_bar = m.addVars(
     scenarios, hours, units, name="dual_maximum_generation", lb=0.0, ub=ub1
-)
-beta_candidate_bar = m.addVars(
-    scenarios,
-    hours,
-    candidate_units,
-    name="dual_maximum_candidate_generation",
-    lb=0.0,
-    ub=ub1,
 )
 beta_underline = m.addVars(
     scenarios, hours, units, name="dual_minimum_generation", lb=0.0, ub=ub1
@@ -196,11 +186,7 @@ def get_objective(x, y):
             + lambda_[o, t, n] * nominal_demand[t, n]
             for n in real_nodes
         )
-        - sum(beta_bar[o, t, u] * G_max[o, t, u] for u in units if unit_built(x, t, u))
-        - sum(
-            beta_candidate_bar[o, t, u] * candidate_rates[u][t] * get_candidate_generation_capacity(t, u, x)
-            for u in candidate_units
-        )
+        - sum(beta_bar[o, t, u] * get_effective_capacity(o, t, u, x) for u in units if unit_built(x, t, u))
         + sum(
             initial_storage[u][o, to_year(t)] * phi_initial_storage[o, t, u]
             if t in year_first_hours
@@ -232,12 +218,12 @@ def get_objective(x, y):
             np.pi * (mu_angle_bar[o, t, n] + mu_angle_underline[o, t, n]) for n in ac_nodes
         )
         - sum(
-            beta_ramp_bar[o, t, u] * G_ramp_max[o, t, u] if t in ramp_hours else 0.0
+            beta_ramp_bar[o, t, u] * get_maximum_ramp(o, t, u, x) if t in ramp_hours else 0.0
             for u in units
             if unit_built(x, t, u)
         )
         + sum(
-            beta_ramp_underline[o, t, u] * G_ramp_min[o, t, u]
+            beta_ramp_underline[o, t, u] * (-get_maximum_ramp(o, t, u, x))
             if t in ramp_hours
             else 0.0
             for u in units
@@ -352,7 +338,6 @@ def set_dependent_constraints(x, y):
         (
             lambda_[o, t, unit_to_node[u]]
             - beta_bar[o, t, u]
-            - (beta_candidate_bar[o, t, u] if u in candidate_units else 0.0)
             + beta_underline[o, t, u]
             + (phi_storage[o, t, u] if t in ramp_hours and u in hydro_units else 0.0)
             - (beta_ramp_bar[o, t - 1, u] if not is_year_first_hour(t) else 0.0)

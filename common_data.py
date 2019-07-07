@@ -45,8 +45,8 @@ num_scenarios = 3
 scenarios = list(range(num_scenarios))
 
 # Years and hours.
-num_years = 10
-num_hours_per_year = 24
+num_years = 6
+num_hours_per_year = 12
 num_hours = num_years * num_hours_per_year
 
 annualizer = float(num_years) * 365.0 / float(num_hours)
@@ -164,10 +164,6 @@ G_max = np.array([np.array(G_max)], dtype=np.float32)
 # 16: waste-e
 # 17: peat-e
 
-# Hydro units are treated specially because they act as a storage.
-hydro_unit_idx = 7
-hydro_units = [u for u, t in unit_to_generation_type.items() if t == hydro_unit_idx]
-
 # Generation costs.
 generation_type_to_cost = {
     0: 29.0,
@@ -245,13 +241,15 @@ for u in existing_units:
 
 # Maximum emissions by year.
 start_emissions = 100000.0
-final_emissions = 10000.0
+final_emissions = 1000.0
 emission_targets = np.linspace(start_emissions, final_emissions, num_years)
 
 assert len(emission_targets) == num_years
 
 # Generate a candidate wind power unit for each real node.
 candidate_units = []
+candidate_unit_types = [1, 2, 3, 8, 9]  # Gas, ccgt, oil, wind, solar.
+candidate_unit_type_names = ["Gas", "Gas CCGT", "Oil", "Wind", "Solar"]
 candidate_unit_to_node = dict()
 unit_idx = len(existing_units)
 
@@ -260,20 +258,20 @@ maximum_candidate_unit_capacity = 20000
 
 if generate_candidate_units:
     for node_idx, node in enumerate(real_nodes):
-        # Set mapping from node to unit id.
-        candidate_units.append(unit_idx)
-        candidate_unit_to_node[unit_idx] = node_idx
+        for candidate_type in candidate_unit_types:
+            # Set mapping from node to unit id.
+            candidate_units.append(unit_idx)
+            candidate_unit_to_node[unit_idx] = node_idx
 
-        # Set generation parameters.
-        generation_type = 8  # Wind.
-        unit_to_generation_type[unit_idx] = generation_type
-        cost = generation_type_to_cost[generation_type]
-        emissions = generation_type_to_emissions[generation_type]
+            # Set generation parameters.
+            unit_to_generation_type[unit_idx] = candidate_type
+            cost = generation_type_to_cost[candidate_type]
+            emissions = generation_type_to_emissions[candidate_type]
 
-        C_g = np.append(C_g, [cost * np.random.uniform(0.8, 1.2)])
-        G_max = np.concatenate((G_max, [[maximum_candidate_unit_capacity]]), axis=1)
-        G_emissions = np.append(G_emissions, [emissions])
-        unit_idx += 1
+            C_g = np.append(C_g, [cost * np.random.uniform(1.0, 1.0)])
+            G_max = np.concatenate((G_max, [[maximum_candidate_unit_capacity]]), axis=1)
+            G_emissions = np.append(G_emissions, [emissions])
+            unit_idx += 1
 
 # Update the total mapping from units to nodes.
 unit_to_node = existing_unit_to_node.copy()
@@ -295,17 +293,7 @@ G_max = np.tile(G_max, (num_scenarios, num_hours, 1))
 G_max += np.random.uniform(-100.0, 50.0, (num_scenarios, num_hours, num_units))
 G_max[:, :, :] = np.maximum(G_max[:, :, :], 0.0)
 
-# Apply wind and PV rates.
-wind_units = [u for u, t in unit_to_generation_type.items() if t == wind_unit_idx]
-pv_units = [u for u, t in unit_to_generation_type.items() if t == pv_unit_idx]
-
-for u in wind_units:
-    G_max[:, :, u] = np.maximum(G_max[:, :, u] * wind_rates[:, unit_to_node[u]], 0.0)
-
-for u in pv_units:
-    G_max[:, :, u] = np.maximum(G_max[:, :, u] * pv_rates[:, unit_to_node[u]], 0.0)
-
-# Apply rates for other generation types.
+# Gather availability rates for all generation types.
 # 0: coal
 # 1: gas
 # 2: ccgt
@@ -325,7 +313,7 @@ for u in pv_units:
 # 15: biomass-e
 # 16: waste-e
 # 17: peat-e
-rates = {
+conventional_rates = {
     0: 0.9,
     1: 0.95,
     2: 0.8,
@@ -333,7 +321,9 @@ rates = {
     4: 0.95,
     5: 0.9,
     6: 0.9,
-    # Hydro, wind, pv are handled separately.
+    # TODO: Better value for this.
+    7: 0.9,
+    # Wind and PV are handled separately.
     10: 0.9 / 2.74,
     11: 0.95 / 2.29,
     12: 0.95 / 1.85,
@@ -344,17 +334,19 @@ rates = {
     17: 0.95 / 3.35
 }
 
+availability_rates = np.zeros((len(scenarios), len(hours), len(units)))
+wind_unit_idx = 8
+pv_unit_idx = 9
+
 for u in units:
     t = unit_to_generation_type[u]
-    if t in rates.keys():
-        G_max[:, :, u] *= rates[t]
 
-
-# Rates for the candidate units.
-candidate_rates = dict()
-
-for u in candidate_units:
-    candidate_rates[u] = wind_rates[:, unit_to_node[u]]
+    if t == wind_unit_idx:
+        availability_rates[:, :, u] = wind_rates[:, unit_to_node[u]]
+    elif t == pv_unit_idx:
+        availability_rates[:, :, u] = pv_rates[:, unit_to_node[u]]
+    else:
+        availability_rates[:, :, u] = conventional_rates[t]
 
 C_g = np.tile(C_g, (num_scenarios, num_hours, 1))
 
@@ -401,25 +393,19 @@ generation_type_to_ramp_rate = {
     16: 0.2,
     17: 0.2,
 }
-
-G_ramp_max = np.zeros_like(G_max)
-
+ramp_rates = np.zeros((len(scenarios), len(hours), len(units)))
 for u in units:
     t = unit_to_generation_type[u]
-    G_ramp_max[:, :, u] = G_max[:, :, u] * generation_type_to_ramp_rate[t]
-
-G_ramp_min = -G_ramp_max
+    ramp_rates[:, :, u] = generation_type_to_ramp_rate[t]
 
 assert (
     G_max.shape[-1]
     == C_g.shape[-1]
     == G_emissions.shape[-1]
-    == G_ramp_max.shape[-1]
     == num_units
 )
 
 # Set initial hydro reservoir to the weeks which the sampled days belong to.
-# Set maximum hydro reservoir as a new constraint.
 # FI: http://wwwi2.ymparisto.fi/i2/95/fie7814.txt
 # SE: https://www.energiforetagen.se/globalassets/energiforetagen/statistik/el/vecko--och-manadsstatistik/vecka_01-52_2014_ver_a.pdf?v=5Lem8eD7Yda4I_l3j6tHMZx4Gus
 # NO: https://energifaktanorge.no/en/norsk-energiforsyning/kraftproduksjon/
@@ -427,6 +413,9 @@ assert (
 
 weekly_inflow = np.genfromtxt("inflow.csv", delimiter=";", skip_header=1)
 weekly_reservoir = np.genfromtxt("reservoir.csv", delimiter=";", skip_header=1)
+
+hydro_unit_idx = 7
+hydro_units = [u for u, t in unit_to_generation_type.items() if t == hydro_unit_idx]
 
 initial_storage = {u: np.zeros((num_scenarios, num_years)) for u in hydro_units}
 inflows = {u: np.zeros((num_scenarios, num_hours)) for u in hydro_units}
@@ -619,7 +608,7 @@ neighbors = {
 if generate_candidate_lines:
     for i in range(num_real_nodes):
         for j in range(i + 1, num_real_nodes):
-            # line can be only built if the two real nodes are neighbors, i.e., their
+            # A line can be only built if the two real nodes are neighbors, i.e., their
             # distance is not too high.
             if j in neighbors[i]:
                 # num_build_options lines can be built between each pair of nodes.
@@ -667,14 +656,16 @@ assert len(incidence) == F_max.shape[-1] == F_min.shape[-1] == num_lines
 # Equal scenario weights.
 weights = np.ones(num_scenarios) / float(num_scenarios)
 
-# Investment parameters
+# Investment parameters.
 discount_factor = 1.10
 
+# Cost per megawatt.
 C_x = {
     (year, unit): 1e6 * discount_factor ** (-year)
     for year in years
     for unit in candidate_units
 }
+# Cost per project.
 C_y = {
     (year, line): 1e8 * discount_factor ** (-year)
     for year in years
