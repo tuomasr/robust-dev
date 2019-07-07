@@ -18,6 +18,11 @@ from common_data import (
     hours,
     real_nodes,
     units,
+    hydro_units,
+    unit_to_node,
+    initial_storage,
+    storage_change_lb,
+    storage_change_ub,
     candidate_units,
     candidate_lines,
     G_ramp_max,
@@ -258,6 +263,29 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
 
     print("up_ramp", up_ramp_active)
     print("down_ramp", down_ramp_active)
+    print("----")
+
+    # Check if final storage constraints were active.
+    storage_lb_active = False
+    storage_ub_active = False
+    for o in scenarios:
+        for u in hydro_units:
+            for y in years:
+                num_hours_per_year = len(hours) / len(years)
+                t1 = (y + 1) * num_hours_per_year - 1
+
+                final_storage = s[o, t1, u, iteration].x
+                final_storage_lb = initial_storage[u][o, y] * storage_change_lb[unit_to_node[u]]
+                final_storage_ub = initial_storage[u][o, y] * storage_change_ub[unit_to_node[u]]
+
+                if np.isclose(final_storage, final_storage_lb):
+                    storage_lb_active = True
+
+                if np.isclose(final_storage, final_storage_ub):
+                    storage_ub_active = True
+
+    print("final_storage_lb", storage_lb_active)
+    print("final_storage_ub", storage_ub_active)
     print("----")
 
     print_storage = False

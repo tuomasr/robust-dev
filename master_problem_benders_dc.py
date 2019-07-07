@@ -24,6 +24,7 @@ from common_data import (
     ac_lines,
     ac_nodes,
     hydro_units,
+    unit_to_node,
     G_max,
     maximum_candidate_unit_capacity,
     F_max,
@@ -37,6 +38,8 @@ from common_data import (
     C_g,
     initial_storage,
     inflows,
+    storage_change_lb,
+    storage_change_ub,
     incidence,
     weights,
     node_to_unit,
@@ -58,6 +61,7 @@ from helpers import (
     get_candidate_generation_capacity,
     compute_objective_gap,
     is_year_first_hour,
+    is_year_last_hour,
 )
 
 
@@ -231,11 +235,12 @@ def augment_master(
     # Augment the Benders master problem with a new cut from the slave problem.
 
     # Unpack the dual values. Be careful with the order.
-    sigma, beta_bar, mu_underline, mu_bar, beta_ramp_underline, beta_ramp_bar, beta_emissions, rho_bar, rho_underline, phi_initial_storage, phi_storage, = (
+    sigma, beta_bar, mu_underline, mu_bar, beta_ramp_underline, beta_ramp_bar, beta_emissions, rho_bar, rho_underline, phi_initial_storage, phi_storage, phi_storage_change_lb, phi_storage_change_ub = (
         dual_values
     )
 
     year_first_hours = [t for t in hours if is_year_first_hour(t)]
+    year_last_hours = [t for t in hours if is_year_last_hour(t)]
     ramp_hours = get_ramp_hours()
 
     mp.update()
@@ -288,6 +293,18 @@ def augment_master(
                             if t in ramp_hours
                             else 0.0
                         )
+                        for u in hydro_units
+                    )
+                    + sum(
+                        phi_storage_change_lb[o, t, u, v] * (-initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]])
+                        if t in year_last_hours
+                        else 0.0
+                        for u in hydro_units
+                    )
+                    + sum(
+                        phi_storage_change_ub[o, t, u, v] * initial_storage[u][o, to_year(t)] * storage_change_ub[unit_to_node[u]]
+                        if t in year_last_hours
+                        else 0.0
                         for u in hydro_units
                     )
                 )
@@ -352,6 +369,18 @@ def augment_master(
                             if t in ramp_hours
                             else 0.0
                         )
+                        for u in hydro_units
+                    )
+                    + sum(
+                        phi_storage_change_lb[o, t, u, v] * (-initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]])
+                        if t in year_last_hours
+                        else 0.0
+                        for u in hydro_units
+                    )
+                    + sum(
+                        phi_storage_change_ub[o, t, u, v] * initial_storage[u][o, to_year(t)] * storage_change_ub[unit_to_node[u]]
+                        if t in year_last_hours
+                        else 0.0
                         for u in hydro_units
                     )
                 )
@@ -452,6 +481,28 @@ def augment_slave(current_iteration, d, yhat, y):
             for u in hydro_units
         ),
         name="storage_%d" % current_iteration,
+    )
+
+    # Final storage.
+    year_last_hours = [t for t in hours if is_year_last_hour(t)]
+    sp.addConstrs(
+        (
+            initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]] - s[o, t, u, v] <= 0.0
+            for o in scenarios
+            for t in year_last_hours
+            for u in hydro_units
+        ),
+        name="final_storage_lb_%d" % current_iteration,
+    )
+
+    sp.addConstrs(
+        (
+            s[o, t, u, v] - initial_storage[u][o, to_year(t)] * storage_change_ub[unit_to_node[u]] <= 0.0
+            for o in scenarios
+            for t in year_last_hours
+            for u in hydro_units
+        ),
+        name="final_storage_ub_%d" % current_iteration,
     )
 
     # Flow constraints for the existing lines.
@@ -560,8 +611,11 @@ def obtain_constraints(current_iteration):
     rho_bar_constrs = dict()
     phi_initial_storage_constrs = dict()
     phi_storage_constrs = dict()
+    phi_storage_change_lb_constrs = dict()
+    phi_storage_change_ub_constrs = dict()
 
     year_first_hours = [t for t in hours if is_year_first_hour(t)]
+    year_last_hours = [t for t in hours if is_year_last_hour(t)]
     ramp_hours = get_ramp_hours()
 
     for v in range(1, current_iteration + 1):
@@ -608,6 +662,28 @@ def obtain_constraints(current_iteration):
                                 o, t, u, v
                             ] = sp.getConstrByName(initial_storage_name)
 
+                    if t in year_last_hours:
+                        if u in hydro_units:
+                            storage_change_lb_name = "final_storage_lb_%d[%d,%d,%d]" % (
+                                v,
+                                o,
+                                t,
+                                u,
+                            )
+                            phi_storage_change_lb_constrs[
+                                o, t, u, v
+                            ] = sp.getConstrByName(storage_change_lb_name)
+
+                            storage_change_ub_name = "final_storage_ub_%d[%d,%d,%d]" % (
+                                v,
+                                o,
+                                t,
+                                u,
+                            )
+                            phi_storage_change_ub_constrs[
+                                o, t, u, v
+                            ] = sp.getConstrByName(storage_change_ub_name)
+
                 for l in lines:
                     min_name = "minimum_flow_%d[%d,%d,%d]" % (v, o, t, l)
                     max_name = "maximum_flow_%d[%d,%d,%d]" % (v, o, t, l)
@@ -630,6 +706,8 @@ def obtain_constraints(current_iteration):
         rho_bar_constrs,
         phi_initial_storage_constrs,
         phi_storage_constrs,
+        phi_storage_change_lb_constrs,
+        phi_storage_change_ub_constrs,
     )
 
     updatable_constrs = (mu_underline_constrs, mu_bar_constrs)

@@ -25,6 +25,7 @@ from common_data import (
     ac_lines,
     ac_nodes,
     hydro_units,
+    unit_to_node,
     G_max,
     maximum_candidate_unit_capacity,
     F_max,
@@ -38,6 +39,8 @@ from common_data import (
     C_g,
     initial_storage,
     inflows,
+    storage_change_lb,
+    storage_change_ub,
     incidence,
     weights,
     node_to_unit,
@@ -58,6 +61,7 @@ from helpers import (
     get_end_node,
     get_candidate_generation_capacity,
     is_year_first_hour,
+    is_year_last_hour,
 )
 
 
@@ -252,6 +256,28 @@ def augment_master_problem(current_iteration, d):
             for u in hydro_units
         ),
         name="storage_%d" % current_iteration,
+    )
+
+    # Final storage.
+    year_last_hours = [t for t in hours if is_year_last_hour(t)]
+    m.addConstrs(
+        (
+            initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]] - s[o, t, u, v] <= 0.0
+            for o in scenarios
+            for t in year_last_hours
+            for u in hydro_units
+        ),
+        name="final_storage_lb_%d" % current_iteration,
+    )
+
+    m.addConstrs(
+        (
+            s[o, t, u, v] - initial_storage[u][o, to_year(t)] * storage_change_ub[unit_to_node[u]] <= 0.0
+            for o in scenarios
+            for t in year_last_hours
+            for u in hydro_units
+        ),
+        name="final_storage_ub_%d" % current_iteration,
     )
 
     # Flow constraints for the lines.
