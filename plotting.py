@@ -46,6 +46,13 @@ def stacked_bar(data, series_labels, category_labels, y_label, grid=True):
 
 def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_algorithm):
     """Create plots for transmission and generation investments."""
+    # Pickling is for debugging... ignore.
+    with open("xhat.pickle", "w") as f:
+        pickle.dump(xhat, f)
+
+    with open("yhat.pickle", "w") as f:
+        pickle.dump(yhat, f)
+
     # Collect data for generation investments.
     series_labels = []
     data = []
@@ -75,31 +82,27 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
     data = [x for _, x in sorted(zip(investment_years, data),
             key=lambda pair: pair[0])]
 
-    width, height = max(1.5*len(years), 12), max(1.6*len(data), 12)
-    plt.figure(figsize=(width, height))
-    stacked_bar(
-        data,
-        series_labels,
-        category_labels,
-        y_label="Cumulative new wind power capacity (MW)"
-    )
-    plt.savefig(
-        "generation_investment_%s_%s.png"
-        % (master_problem_algorithm, subproblem_algorithm)
-    )
+    if len(data) > 0:
+        width, height = max(1.5*len(years), 12), max(1.6*len(data), 12)
+        plt.figure(figsize=(width, height))
+        stacked_bar(
+            data,
+            series_labels,
+            category_labels,
+            y_label="Cumulative new wind power capacity (MW)"
+        )
+        plt.savefig(
+            "generation_investment_%s_%s.png"
+            % (master_problem_algorithm, subproblem_algorithm)
+        )
+    else:
+        print("No generation investments. Nothing to plot.")
 
     # Collect data for transmission investments.
     series_labels = []
     data = []
     category_labels = years
     investment_years = []
-
-    # Pickling is for debugging... ignore
-    with open("xhat.pickle", "w") as f:
-        pickle.dump(xhat, f)
-
-    with open("yhat.pickle", "w") as f:
-        pickle.dump(yhat, f)
 
     for key, val in yhat.items():
         if val > 0.0:
@@ -122,18 +125,21 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
     data = [x for _, x in sorted(zip(investment_years, data),
             key=lambda pair: pair[0])]
 
-    width, height = max(1.1*len(years), 12), max(1.1*len(data), 10)
-    plt.figure(figsize=(width, height))
-    stacked_bar(
-        data,
-        series_labels,
-        category_labels,
-        y_label="Cumulative new transmission line capacity (MW)"
-    )
-    plt.savefig(
-        "transmission_investment_%s_%s.png"
-        % (master_problem_algorithm, subproblem_algorithm)
-    )
+    if len(data) > 0:
+        width, height = max(1.1*len(years), 12), max(1.1*len(data), 10)
+        plt.figure(figsize=(width, height))
+        stacked_bar(
+            data,
+            series_labels,
+            category_labels,
+            y_label="Cumulative new transmission line capacity (MW)"
+        )
+        plt.savefig(
+            "transmission_investment_%s_%s.png"
+            % (master_problem_algorithm, subproblem_algorithm)
+        )
+    else:
+        print("No transmission investments. Nothing to plot.")
 
 
 def create_emission_plots(emissions, emission_prices,
@@ -176,10 +182,10 @@ def create_emission_plots(emissions, emission_prices,
 
 def test():
     """For debugging the plotting functions."""
-    with open("xhat_hard2.pickle", "r") as f:
+    with open("xhat.pickle", "r") as f:
         xhat = pickle.load(f)
 
-    with open("yhat_hard2.pickle", "r") as f:
+    with open("yhat.pickle", "r") as f:
         yhat = pickle.load(f)
 
     create_investment_plots(xhat, yhat, "test", "test")

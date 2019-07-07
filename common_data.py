@@ -1,6 +1,6 @@
 # Define data used by both the master problem and subproblem.
 
-# TODO: maximum storage constraint?
+# TODO: More candidate units?
 
 from __future__ import absolute_import
 from __future__ import division
@@ -84,9 +84,11 @@ load_real_nodes = np.genfromtxt("load.csv", delimiter=";", skip_header=1)
 load = np.zeros((num_hours, num_real_nodes))
 
 # Read load for the sampled days.
+load_growth = 1.03  # Yearly growth.
+
 for i, (start, end) in enumerate(zip(start_indices, end_indices)):
     load_slice = load_real_nodes[start:end]
-    load[i*num_hours_per_year:(i+1)*num_hours_per_year, :] = load_slice
+    load[i*num_hours_per_year:(i+1)*num_hours_per_year, :] = load_slice * (load_growth ** i)
 
 # Units.
 generation_capacities = np.genfromtxt(
@@ -290,7 +292,7 @@ num_units = len(units)
 
 # Augment the arrays to have correct dimensions.
 G_max = np.tile(G_max, (num_scenarios, num_hours, 1))
-G_max += np.random.uniform(-50.0, 50.0, (num_scenarios, num_hours, num_units))
+G_max += np.random.uniform(-100.0, 50.0, (num_scenarios, num_hours, num_units))
 G_max[:, :, :] = np.maximum(G_max[:, :, :], 0.0)
 
 # Apply wind and PV rates.
@@ -439,10 +441,36 @@ for y, idx in enumerate(start_indices):
         n = nodemap[unit_to_node[u]]
 
         h1 = y*num_hours_per_year
+
         h2 = (y+1)*num_hours_per_year
-        initial_storage[u][:, y] = np.max(G_max[:, h1:h2, u]) * 2 # weekly_reservoir[week, n]
+        initial_storage[u][:, y] = weekly_reservoir[week, n]
         # Convert weekly inflow to hourly.
         inflows[u][:, h1:h2] = weekly_inflow[week, n] / 168
+
+storage_change_ub = {
+    0: 0.0,
+    1: 0.0,
+    2: 0.0,
+    3: 0.145, #0.05802,
+    4: 0.233, #0.14784,
+    5: 0.825, #0.16817,
+    6: 0.143, #0.05178,
+    7: 0.204, #0.04949,
+}
+storage_change_ub = {k: 1.0 + v / 168 * num_hours_per_year for k, v in storage_change_ub.items()}
+
+storage_change_lb = {
+    0: 0.0,
+    1: 0.0,
+    2: 0.0,
+    3: -0.044, #-0.0330,
+    4: -0.198, #-0.1342,
+    5: -0.449, #-0.1523,
+    6: -0.055, #-0.0415,
+    7: -0.07, #-0.0633,
+}
+storage_change_lb = {k: 1.0 + v / 168 * num_hours_per_year for k, v in storage_change_lb.items()}
+
 
 # Build lines x nodes incidence matrix for existing lines.
 # List pairs of nodes that are connected. Note: these are in 1-based indexing.
@@ -621,11 +649,11 @@ num_lines = len(lines)
 
 # Augment the transmission capacity arrays to have expected dimensions.
 F_max = np.tile(F_max, (num_scenarios, num_hours, 1))
-F_max += np.random.uniform(-50.0, 10.0, (num_scenarios, num_hours, num_lines))
+F_max += np.random.uniform(-100.0, 10.0, (num_scenarios, num_hours, num_lines))
 F_max[:, :, :] = np.maximum(F_max[:, :, :], 0.0)
 
 F_min = np.tile(F_min, (num_scenarios, num_hours, 1))
-F_min += np.random.uniform(-10.0, 50.0, (num_scenarios, num_hours, num_lines))
+F_min += np.random.uniform(-10.0, 100.0, (num_scenarios, num_hours, num_lines))
 F_min[:, :, :] = np.minimum(F_min[:, :, :], 0.0)
 
 # Susceptance.

@@ -36,6 +36,8 @@ from common_data import (
     C_g,
     initial_storage,
     inflows,
+    storage_change_lb,
+    storage_change_ub,
     unit_to_node,
     emission_targets,
     G_emissions,
@@ -112,6 +114,7 @@ ramp_hours = get_ramp_hours()
 
 # Storage dual variables.
 year_first_hours = [t for t in hours if is_year_first_hour(t)]
+year_last_hours = [t for t in hours if is_year_last_hour(t)]
 
 beta_storage_underline = m.addVars(
     scenarios, hours, hydro_units, name="dual_minimum_storage", lb=0.0, ub=ub1
@@ -128,6 +131,24 @@ phi_initial_storage = m.addVars(
 
 phi_storage = m.addVars(
     scenarios, ramp_hours, hydro_units, name="dual_storage", lb=lb2, ub=ub2
+)
+
+phi_storage_change_lb = m.addVars(
+    scenarios,
+    year_last_hours,
+    hydro_units,
+    name="dual_storage_change_lb",
+    lb=0.0,
+    ub=ub1,
+)
+
+phi_storage_change_ub = m.addVars(
+    scenarios,
+    year_last_hours,
+    hydro_units,
+    name="dual_storage_change_ub",
+    lb=0.0,
+    ub=ub1,
 )
 
 # Maximum up- and down ramp dual variables.
@@ -191,6 +212,18 @@ def get_objective(x, y):
             for u in hydro_units
         )
         - sum(
+            phi_storage_change_lb[o, t, u] * (-initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]])
+            if t in year_last_hours
+            else 0.0
+            for u in hydro_units
+        )
+        - sum(
+            phi_storage_change_ub[o, t, u] * initial_storage[u][o, to_year(t)] * storage_change_ub[unit_to_node[u]]
+            if t in year_last_hours
+            else 0.0
+            for u in hydro_units
+        )
+        - sum(
             (mu_bar[o, t, l] * F_max[o, t, l] - mu_underline[o, t, l] * F_min[o, t, l])
             for l in lines
             if line_built(y, t, l)
@@ -250,6 +283,8 @@ m.addConstrs(
         + beta_storage_underline[o, t, u]
         - (phi_storage[o, t, u] if not is_year_last_hour(t) else 0.0)
         + (phi_storage[o, t - 1, u] if not is_year_first_hour(t) else 0.0)
+        + (phi_storage_change_lb[o, t, u] if is_year_last_hour(t) else 0.0)
+        - (phi_storage_change_ub[o, t, u] if is_year_last_hour(t) else 0.0)
         == 0.0
         for o in scenarios
         for t in hours
