@@ -31,9 +31,6 @@ from common_data import (
     F_min,
     B,
     ref_node,
-    candidate_rates,
-    G_ramp_max,
-    G_ramp_min,
     G_emissions,
     C_g,
     initial_storage,
@@ -58,7 +55,8 @@ from helpers import (
     get_ramp_hours,
     get_start_node,
     get_end_node,
-    get_candidate_generation_capacity,
+    get_effective_capacity,
+    get_maximum_ramp,
     compute_objective_gap,
     is_year_first_hour,
     is_year_last_hour,
@@ -214,6 +212,14 @@ sp.addConstrs(
     name="unit_operational1",
 )
 
+sp.addConstrs(
+    (
+        sum(xhat[t, u] for t in years) <= maximum_candidate_unit_capacity
+        for u in candidate_units
+    ),
+    name="maximum_unit_investment",
+)
+
 # Variable representing the subproblem objective value.
 theta = sp.addVar(name="theta", lb=0.0, ub=GRB.INFINITY)
 
@@ -250,7 +256,7 @@ def augment_master(
             delta
             - sum(
                 (
-                    +sum(G_max[o, t, u] * beta_bar[o, t, u, v] for u in units)
+                    +sum(get_effective_capacity(o, t, u, x) * beta_bar[o, t, u, v] for u in existing_units)
                     - sum(
                         F_min[o, t, l] * line_built(y, t, l) * mu_underline[o, t, l, v]
                         for l in lines
@@ -261,19 +267,19 @@ def augment_master(
                     )
                     - sum(
                         (
-                            G_ramp_min[o, t, u] * beta_ramp_underline[o, t, u, v]
+                            (-get_maximum_ramp(o, t, u, x)) * beta_ramp_underline[o, t, u, v]
                             if t in ramp_hours
                             else 0.0
                         )
-                        for u in units
+                        for u in existing_units
                     )
                     + sum(
                         (
-                            G_ramp_max[o, t, u] * beta_ramp_bar[o, t, u, v]
+                            get_maximum_ramp(o, t, u, x) * beta_ramp_bar[o, t, u, v]
                             if t in ramp_hours
                             else 0.0
                         )
-                        for u in units
+                        for u in existing_units
                     )
                     + sum(d[t, n, v] * sigma[o, t, n, v] for n in real_nodes)
                     + sum(np.pi * rho_underline[o, t, n, v] for n in ac_nodes)
@@ -326,7 +332,7 @@ def augment_master(
         mp.addConstr(
             sum(
                 (
-                    +sum(G_max[o, t, u] * beta_bar[o, t, u, v] for u in units)
+                    +sum(get_effective_capacity(o, t, u, x) * beta_bar[o, t, u, v] for u in existing_units)
                     - sum(
                         F_min[o, t, l] * line_built(y, t, l) * mu_underline[o, t, l, v]
                         for l in lines
@@ -337,19 +343,19 @@ def augment_master(
                     )
                     - sum(
                         (
-                            G_ramp_min[o, t, u] * beta_ramp_underline[o, t, u, v]
+                            (-get_maximum_ramp(o, t, u, x)) * beta_ramp_underline[o, t, u, v]
                             if t in ramp_hours
                             else 0.0
                         )
-                        for u in units
+                        for u in existing_units
                     )
                     + sum(
                         (
-                            G_ramp_max[o, t, u] * beta_ramp_bar[o, t, u, v]
+                            get_maximum_ramp(o, t, u, x) * beta_ramp_bar[o, t, u, v]
                             if t in ramp_hours
                             else 0.0
                         )
-                        for u in units
+                        for u in existing_units
                     )
                     + sum(d[t, n, v] * sigma[o, t, n, v] for n in real_nodes)
                     + sum(np.pi * rho_underline[o, t, n, v] for n in ac_nodes)
@@ -440,17 +446,7 @@ def augment_slave(current_iteration, d, yhat, y):
     # Generation constraint for the units.
     sp.addConstrs(
         (
-            g[o, t, u, v] - candidate_rates[u][t] * get_candidate_generation_capacity(t, u, x) <= 0.0
-            for o in scenarios
-            for t in hours
-            for u in candidate_units
-        ),
-        name="maximum_candidate_generation_%d" % current_iteration,
-    )
-
-    sp.addConstrs(
-        (
-            g[o, t, u, v] - G_max[o, t, u] <= 0.0
+            g[o, t, u, v] - get_effective_capacity(o, t, u, x) <= 0.0
             for o in scenarios
             for t in hours
             for u in units
@@ -551,7 +547,7 @@ def augment_slave(current_iteration, d, yhat, y):
     # Maximum ramp downwards.
     sp.addConstrs(
         (
-            G_ramp_min[o, t, u] - g[o, t + 1, u, v] + g[o, t, u, v] <= 0.0
+            -get_maximum_ramp(o, t, u, x) - g[o, t + 1, u, v] + g[o, t, u, v] <= 0.0
             for o in scenarios
             for t in ramp_hours
             for u in units
@@ -562,7 +558,7 @@ def augment_slave(current_iteration, d, yhat, y):
     # Maximum ramp upwards.
     sp.addConstrs(
         (
-            g[o, t + 1, u, v] - g[o, t, u, v] - G_ramp_max[o, t, u] <= 0.0
+            g[o, t + 1, u, v] - g[o, t, u, v] - get_maximum_ramp(o, t, u, x) <= 0.0
             for o in scenarios
             for t in ramp_hours
             for u in units
@@ -632,7 +628,7 @@ def obtain_constraints(current_iteration):
                         rho_underline_constrs[o, t, n, v] = sp.getConstrByName(lb_name)
                         rho_bar_constrs[o, t, n, v] = sp.getConstrByName(ub_name)
 
-                for u in units:
+                for u in existing_units:
                     name = "maximum_generation_%d[%d,%d,%d]" % (v, o, t, u)
                     beta_bar_constrs[o, t, u, v] = sp.getConstrByName(name)
 

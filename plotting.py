@@ -6,11 +6,12 @@ import matplotlib.pyplot as plt
 plt.switch_backend("agg")  # Enable plotting without a monitor.
 
 from common_data import scenarios, real_node_names, years, unit_to_node, incidence, F_max, \
-    candidate_line_capacity
+    candidate_line_capacity, unit_to_generation_type, candidate_unit_type_names, candidate_unit_types
 from helpers import get_start_node, get_end_node
 
 
-def stacked_bar(data, series_labels, category_labels, y_label, grid=True):
+def stacked_bar(data, series_labels, category_labels, y_label,
+                colors=None, legend_labels=None, grid=True):
     """Plots a stacked bar chart with the data and labels provided.
 
     Modified from: https://stackoverflow.com/a/50205834
@@ -23,9 +24,17 @@ def stacked_bar(data, series_labels, category_labels, y_label, grid=True):
 
     data = np.array(data)
 
+    legend_data = dict()
+
     for i, row_data in enumerate(data):
-        axes.append(plt.bar(ind, row_data, bottom=cum_size, width=0.9))
+        color = colors[i] if colors is not None else 'b'
+        bar = plt.bar(ind, row_data, bottom=cum_size, color=color, width=0.9)
+        axes.append(bar)
         cum_size += row_data
+
+        if legend_labels:
+            label = legend_labels[i]
+            legend_data[color] = (bar, label)
 
     if category_labels:
         plt.xticks(ind, category_labels)
@@ -44,6 +53,10 @@ def stacked_bar(data, series_labels, category_labels, y_label, grid=True):
                 plt.text(bar.get_x() + w/2, bar.get_y() + h/2,
                          series_labels[i], ha="center", va="center")
 
+    if legend_data:
+        handles, labels = zip(*legend_data.values())
+        plt.legend(handles, labels, loc='upper left')
+
 def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_algorithm):
     """Create plots for transmission and generation investments."""
     # Pickling is for debugging... ignore.
@@ -58,6 +71,11 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
     data = []
     category_labels = years
     investment_years = []
+    colors = []
+    legend_labels = []
+
+    palette = {k: v for k, v in zip(candidate_unit_types, ["r", "c", "m", "b", "y"])}
+    candidate_unit_name_map = {k: v for k, v in zip(candidate_unit_types, candidate_unit_type_names)}
 
     for key, val in xhat.items():
         # Only show investments >= 10 MW.
@@ -66,6 +84,7 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
         if trunc_val > 0.0:
             year, unit = key
             node = unit_to_node[unit]
+            unit_type = unit_to_generation_type[unit]
             unit_label = real_node_names[node] + "\n" + str(trunc_val) + " MW"
 
             series_labels.append(unit_label)
@@ -75,6 +94,8 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
 
             data.append(capacity)
             investment_years.append(year)   # For reordering the data points by investment year.
+            colors.append(palette[unit_type])
+            legend_labels.append(candidate_unit_name_map[unit_type])
 
     # Reorder data so that they appear in the order of the investment year.
     series_labels = [x for _, x in
@@ -89,7 +110,9 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
             data,
             series_labels,
             category_labels,
-            y_label="Cumulative new wind power capacity (MW)"
+            y_label="Cumulative new wind power capacity (MW)",
+            colors=colors,
+            legend_labels=legend_labels,
         )
         plt.savefig(
             "generation_investment_%s_%s.png"

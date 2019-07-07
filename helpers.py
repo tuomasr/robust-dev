@@ -14,6 +14,12 @@ from common_data import (
     candidate_units,
     candidate_lines,
     incidence,
+    G_max,
+    availability_rates,
+    ramp_rates,
+    wind_unit_idx,
+    pv_unit_idx,
+    unit_to_generation_type,
 )
 
 
@@ -32,14 +38,38 @@ def to_hours(y):
     return range(y * num_hours_per_year, (y + 1) * num_hours_per_year)
 
 
-def get_candidate_generation_capacity(t, u, x):
-    # Compute the total capacity of the candidate unit during this year.
-    assert u in candidate_units
-    year = to_year(t)
-    capacity = x[year, u]
+def get_installed_capacity(o, t, u, x):
+    # Get installed generation capacity at any given time.
+    if u in candidate_units:
+        # Compute the total capacity of the candidate unit during this year.
+        year = to_year(t)
+        capacity = x[year, u]
+    else:
+        capacity = G_max[o, t, u]
 
-    return capacity
+    return np.maximum(capacity, 0.0)
 
+
+def get_effective_capacity(o, t, u, x):
+    # Get effective available generation capacity at any given time.
+    installed_capacity = get_installed_capacity(o, t, u, x)
+    # Multiply installed capacity with availability rate.
+    # For wind and solar, availability rate is weather-dependent.
+    # Otherwise it takes into account outages.
+    available = installed_capacity * availability_rates[o, t, u]
+
+    return np.maximum(available, 0.0)
+
+def get_maximum_ramp(o, t, u, x):
+    # Get maximum ramp at any given time.
+    # Wind and PV can ramp up freely within the installed capacity limits.
+    if unit_to_generation_type[u] in (wind_unit_idx, pv_unit_idx):
+        ramp = get_installed_capacity(o, t, u, x)
+    else:
+        # Otherwise, take a fraction of the effective capacity.
+        ramp = get_effective_capacity(o, t, u, x) * ramp_rates[o, t, u]
+
+    return np.maximum(ramp, 0.0)
 
 def unit_built(x, h, u):
     # Check if a generation unit is built at hour h.
