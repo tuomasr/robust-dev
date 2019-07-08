@@ -1,7 +1,5 @@
 # Define data used by both the master problem and subproblem.
 
-# TODO: More candidate units?
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
