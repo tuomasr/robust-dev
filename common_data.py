@@ -253,8 +253,8 @@ assert len(emission_targets) == num_years
 
 # Generate a candidate wind power unit for each real node.
 candidate_units = []
-candidate_unit_types = [1, 2, 3, 8, 9]  # Gas, ccgt, oil, wind, solar.
-candidate_unit_type_names = ["Gas", "CCGT", "Oil", "Wind", "Solar"]
+candidate_unit_types = [1, 2, 3, 4, 8, 9]  # Gas, ccgt, oil, biomass, wind, solar.
+candidate_unit_type_names = ["Gas", "CCGT", "Oil", "Biomass", "Wind", "Solar"]
 candidate_unit_to_node = dict()
 unit_idx = len(existing_units)
 
