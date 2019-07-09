@@ -28,7 +28,7 @@ from common_data import (
     unit_to_node,
     unit_to_generation_type,
     G_max,
-    maximum_candidate_unit_capacity,
+    maximum_candidate_unit_capacity_by_type,
     F_max,
     F_min,
     B,
@@ -61,6 +61,7 @@ from helpers import (
     get_maximum_ramp,
     is_year_first_hour,
     is_year_last_hour,
+    get_investment_and_availability_decisions,
 )
 
 
@@ -159,7 +160,7 @@ m.addConstrs(
 
 m.addConstrs(
     (
-        sum(xhat[t, u] for t in years) <= maximum_candidate_unit_capacity
+        sum(xhat[t, u] for t in years) <= maximum_candidate_unit_capacity_by_type[unit_to_generation_type[u]]
         for u in candidate_units
     ),
     name="maximum_unit_investment",
@@ -352,46 +353,6 @@ def augment_master_problem(current_iteration, d):
     )
 
     return g, s
-
-
-def get_investment_and_availability_decisions(initial=False):
-    # Read current investments to generation and transmission and whether the units and lines are
-    # operational at some time point.
-    current_xhat = dict()
-    current_yhat = dict()
-
-    current_x = dict()
-    current_y = dict()
-
-    initial_generation_investment = maximum_candidate_unit_capacity
-    initial_transmission_investment = 1.0
-
-    for t in years:
-        for u in candidate_units:
-            if initial:
-                if t == 0:
-                    current_xhat[t, u] = initial_generation_investment
-                else:
-                    current_xhat[t, u] = 0.0
-
-                current_x[t, u] = initial_generation_investment
-            else:
-                current_xhat[t, u] = xhat[t, u].x
-                current_x[t, u] = x[t, u].x
-
-        for l in candidate_lines:
-            if initial:
-                if t == 0:
-                    current_yhat[t, l] = initial_transmission_investment
-                else:
-                    current_yhat[t, l] = 0.0
-
-                current_y[t, l] = initial_transmission_investment
-            else:
-                current_yhat[t, l] = float(int(yhat[t, l].x))
-                current_y[t, l] = float(int(y[t, l].x))
-
-    return current_xhat, current_yhat, current_x, current_y
 
 
 def get_emissions(g):

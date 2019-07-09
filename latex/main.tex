@@ -209,35 +209,35 @@ where the notation $t(\tau)$ indicates to which master problem time step $t$ the
 \begin{figure}[htpb]
 	%\centering
 	\begin{tikzpicture}
-	\node at (0,0) {master problem};
-	\draw (1.75,0) -- (6.3,0);
-	\node at (1.3,0.55) {$t$};
-	\draw (2.75,-0.3) -- (2.75,0.3) node [above] {$0$};
-	\draw (5.25,-0.3) -- (5.25,0.3) node [above] {$1$};
+		\node at (0,0) {master problem};
+		\draw (1.75,0) -- (6.3,0);
+		\node at (1.3,0.55) {$t$};
+		\draw (2.75,-0.3) -- (2.75,0.3) node [above] {$0$};
+		\draw (5.25,-0.3) -- (5.25,0.3) node [above] {$1$};
 
-	\draw [decorate,decoration={brace,amplitude=13pt}] (1.75,-1.3) -- (3.75,-1.3);
-	\draw [decorate,decoration={brace,amplitude=13pt}] (4.25,-1.3) -- (6.25,-1.3);
+		\draw [decorate,decoration={brace,amplitude=13pt}] (1.75,-1.3) -- (3.75,-1.3);
+		\draw [decorate,decoration={brace,amplitude=13pt}] (4.25,-1.3) -- (6.25,-1.3);
 
-	\node at (2.75,-0.55) {$\tau \in t = 0$};
-	\node at (5.25,-0.55) {$\tau \in t = 1$};
+		\node at (2.75,-0.55) {$\tau \in t = 0$};
+		\node at (5.25,-0.55) {$\tau \in t = 1$};
 
-	\node at (0,-2) {subproblem};
-	\node at (1.3,-1.5) {$\tau$};
-	\foreach \x in {0,1,2,...,9}
-    {
-      \coordinate (A\x) at ($(1.75,-2)+(\x*0.5cm,0)$) {};
-      \draw ($(A\x)+(0,5pt)$) -- ($(A\x)-(0,5pt)$);
-      \node at ($(A\x)+(0,3ex)$) {\x};
-    }
-	\draw (A0) -- (A9);
+		\node at (0,-2) {subproblem};
+		\node at (1.3,-1.5) {$\tau$};
+		\foreach \x in {0,1,2,...,9}
+		{
+		\coordinate (A\x) at ($(1.75,-2)+(\x*0.5cm,0)$) {};
+		\draw ($(A\x)+(0,5pt)$) -- ($(A\x)-(0,5pt)$);
+		\node at ($(A\x)+(0,3ex)$) {\x};
+		}
+		\draw (A0) -- (A9);
 
-	\node[text width=6cm] at (4.5, -3) {$T^0 = \{ 0, 5 \}, \quad T^{-1} = \{ 4, 9 \}$};
-	\node[text width=6cm] at (4.5, -3.5) {$T^{ramp} = \{ 0, 1, 2, 3, 5, 6, 7, 8 \}$};
-	\node[text width=6cm] at (4.5, -4.0) {$t(\tau) = \left \lfloor{\frac{\tau}{5}}\right \rfloor $};
+		\node[text width=6cm] at (4.5, -3) {$T^0 = \{ 0, 5 \}, \quad T^{-1} = \{ 4, 9 \}$};
+		\node[text width=6cm] at (4.5, -3.5) {$T^{ramp} = \{ 0, 1, 2, 3, 5, 6, 7, 8 \}$};
+		\node[text width=6cm] at (4.5, -4.0) {$t(\tau) = \left \lfloor{\frac{\tau}{5}}\right \rfloor $};
 	\end{tikzpicture}
 	\caption{$T^0$, $T^{ramp}$, $T^{-1}$, $t(\tau)$, and $\tau \in t$ in an example problem with five subproblem timesteps within each of the two master problem time steps}
 	\label{fig_time_scales}
-	\end{figure}
+\end{figure}
 
 \subsection{Overview of the solution algorithm}
 
@@ -328,7 +328,7 @@ For the subproblem, we set $\Omega^{S} = \{ \lambda_{o, \tau, n} \forall o, \tau
 \end{align}
 where the notation $n(u)$ indicates the node $n$ at which unit $u$ is located and $\mathbbm{1}_{cond}$ equals 1 if $cond$ is true and otherwise 0.
 
-The subproblem can be solved directly as a MIQP. Alternatively, the subproblem can be re-formulated as an MILP by linearizing the product of a continuous and a binary variable in $\lambda_{o, \tau, n} d_{\tau, n} = \lambda_{o, \tau, n} D^{-t(\tau)} (\tilde{D}_{\tau, n} + w_n \hat{D}_{\tau, n})$ in the objective function (\ref{sub_obj}) exactly with $\lambda_{o, \tau, n} d_{\tau, n} = D^{-t(\tau)} (z_{o, \tau, n} \hat{D}_{\tau, n} + \lambda_{o, \tau, n} \tilde{D}_{\tau, n})$ and by adding the following constraints to the subproblem
+The subproblem can be solved directly as a MIQP using solvers such as Gurobi. Alternatively, the subproblem can be re-formulated as an MILP by linearizing the product of a continuous and a binary variable in $\lambda_{o, \tau, n} d_{\tau, n} = \lambda_{o, \tau, n} D^{-t(\tau)} (\tilde{D}_{\tau, n} + w_n \hat{D}_{\tau, n})$ in the objective function (\ref{sub_obj}) exactly with $\lambda_{o, \tau, n} d_{\tau, n} = D^{-t(\tau)} (z_{o, \tau, n} \hat{D}_{\tau, n} + \lambda_{o, \tau, n} \tilde{D}_{\tau, n})$ and by adding the following constraints to the subproblem
 \begin{align}
 &\label{z_constr} z_{o, \tau, n} = \lambda_{o, \tau, n} - \tilde{\lambda}_{o, \tau, n} \quad \forall o, \tau, n \\
 &\Lambda^{min} w_n \leq z_{o, \tau, n} \leq \Lambda^{max} w_n \quad \forall o, \tau, n \\

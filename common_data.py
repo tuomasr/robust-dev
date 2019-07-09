@@ -259,7 +259,14 @@ candidate_unit_to_node = dict()
 unit_idx = len(existing_units)
 
 generate_candidate_units = True
-maximum_candidate_unit_capacity = 20000
+maximum_candidate_unit_capacity_by_type = {
+    1: 1000.0,
+    2: 1000.0,
+    3: 1000.0,
+    4: 1000.0,
+    8: 10000.0,
+    9: 10000.0,
+}
 
 if generate_candidate_units:
     for node_idx, node in enumerate(real_nodes):
@@ -274,7 +281,8 @@ if generate_candidate_units:
             emissions = generation_type_to_emissions[candidate_type]
 
             C_g = np.append(C_g, [cost * np.random.uniform(1.0, 1.0)])
-            G_max = np.concatenate((G_max, [[maximum_candidate_unit_capacity]]), axis=1)
+            max_capacity = maximum_candidate_unit_capacity_by_type[candidate_type]
+            G_max = np.concatenate((G_max, [[max_capacity]]), axis=1)
             G_emissions = np.append(G_emissions, [emissions])
             unit_idx += 1
 

@@ -21,6 +21,8 @@ from common_data import (
     wind_unit_idx,
     pv_unit_idx,
     unit_to_generation_type,
+    maximum_candidate_unit_capacity_by_type,
+    unit_to_generation_type,
 )
 
 
@@ -144,6 +146,69 @@ def is_year_last_hour(h):
     remainder = (h + 1) % num_hours_per_year
 
     return remainder == 0
+
+
+def get_initial_transmission_investments():
+    # Get initial transmission line investments.
+    initial_yhat = dict()
+    initial_y = dict()
+
+    for t in years:
+        for l in candidate_lines:
+            if t == 0:
+                initial_yhat[t, l] = 1.0
+            else:
+                initial_yhat[t, l] = 0.0
+
+            initial_y[t, l] = 1.0
+
+    return initial_yhat, initial_y
+
+
+def get_investment_and_availability_decisions(initial=False, many_solutions=False):
+    # Read current investments to generation and transmission and whether the units and lines are
+    # operational at some time point.
+    current_xhat = dict()
+    current_yhat = dict()
+
+    current_x = dict()
+    current_y = dict()
+
+    initial_transmission_investment = 1.0
+
+    for t in years:
+        for u in candidate_units:
+            unit_type = unit_to_generation_type[u]
+            initial_generation_investment = maximum_candidate_unit_capacity_by_type[unit_type]
+
+            if initial:
+                if t == 0:
+                    current_xhat[t, u] = initial_generation_investment
+                else:
+                    current_xhat[t, u] = 0.0
+
+                current_x[t, u] = initial_generation_investment
+            else:
+                current_xhat[t, u] = xhat[t, u].x
+                current_x[t, u] = x[t, u].x
+
+        for l in candidate_lines:
+            if initial:
+                if t == 0:
+                    current_yhat[t, l] = initial_transmission_investment
+                else:
+                    current_yhat[t, l] = 0.0
+
+                current_y[t, l] = initial_transmission_investment
+            else:
+                if many_solutions:
+                    current_yhat[t, l] = float(int(yhat[t, l].Xn))
+                    current_y[t, l] = float(int(y[t, l].Xn))
+                else:
+                    current_yhat[t, l] = float(int(yhat[t, l].x))
+                    current_y[t, l] = float(int(y[t, l].x))
+
+    return current_xhat, current_yhat, current_x, current_y
 
 
 def concatenate_to_uncertain_variables_array(current_d, new_d):
