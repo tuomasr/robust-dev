@@ -10,6 +10,7 @@ import numpy as np
 
 from common_data import (
     hours,
+    years,
     scenarios,
     real_nodes,
     nodes,
@@ -38,7 +39,6 @@ from common_data import (
     unit_to_node,
     emission_targets,
     G_emissions,
-    years,
     discount_factor,
     subproblem_method,
     enable_custom_configuration,
@@ -73,7 +73,7 @@ if enable_custom_configuration:
     for parameter, value in GRB_PARAMS:
         m.setParam(parameter, value)
 
-K = 10000.0
+K = 1000.0
 
 # Demand is fixed for the dummy nodes that do not contain any load.
 # For real nodes that contain load, add hour- and nodewise uncertain demand variables and
@@ -248,15 +248,6 @@ def set_subproblem_objective(x, y):
 
 
 # Constraints defining the uncertainty set.
-m.addConstrs(
-    (
-        d[t, n] - nominal_demand[t, n] - w[n] * demand_increase[t, n] == 0.0
-        for t in hours
-        for n in real_nodes
-    ),
-    name="uncertainty_set_demand_increase",
-)
-
 m.addConstr(
     sum(w[n] for n in real_nodes) - uncertainty_budget == 0.0,
     name="uncertainty_set_budget",

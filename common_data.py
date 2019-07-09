@@ -35,7 +35,7 @@ GRB_PARAMS = [
 # https://ieeexplore-ieee-org.libproxy.aalto.fi/stamp/stamp.jsp?tp=&arnumber=8309280
 
 # Uncertainty parameters.
-uncertainty_demand_increase = 100.0
+uncertainty_demand_increase_factor = 100.0
 uncertainty_budget = 2.0
 
 # Scenarios.
@@ -43,11 +43,11 @@ num_scenarios = 3
 scenarios = list(range(num_scenarios))
 
 # Years and hours.
-num_years = 6
-num_hours_per_year = 12
+num_years = 10
+num_hours_per_year = 24
 num_hours = num_years * num_hours_per_year
 
-annualizer = float(num_years) * 365.0 / float(num_hours)
+annualizer = 365.0 * 24.0 / float(num_hours_per_year)
 
 years = list(range(num_years))
 hours = list(range(num_hours))
@@ -84,9 +84,15 @@ load = np.zeros((num_hours, num_real_nodes))
 # Read load for the sampled days.
 load_growth = 1.03  # Yearly growth.
 
+uncertainty_demand_increase = np.ones_like(load) * uncertainty_demand_increase_factor
+
 for i, (start, end) in enumerate(zip(start_indices, end_indices)):
+    load_growth_factor = load_growth ** i
+
     load_slice = load_real_nodes[start:end]
-    load[i*num_hours_per_year:(i+1)*num_hours_per_year, :] = load_slice * (load_growth ** i)
+    load[i*num_hours_per_year:(i+1)*num_hours_per_year, :] = load_slice * load_growth_factor
+
+    uncertainty_demand_increase[i*num_hours_per_year:(i+1)*num_hours_per_year, :] *= load_growth_factor
 
 # Units.
 generation_capacities = np.genfromtxt(
@@ -239,7 +245,7 @@ for u in existing_units:
 
 # Maximum emissions by year.
 start_emissions = 100000.0
-final_emissions = 1000.0
+final_emissions = 20000.0
 emission_targets = np.linspace(start_emissions, final_emissions, num_years)
 
 assert len(emission_targets) == num_years
@@ -421,6 +427,21 @@ inflows = {u: np.zeros((num_scenarios, num_hours)) for u in hydro_units}
 # Map FI, LT, LV, NO, SE to columns in the inflow and reservoir CSV files.
 nodemap = {3: 0, 4: 1, 5: 2, 6: 3, 7: 4}
 
+# Scale initial reservoir down to avoid numerical issues as the initial reservoir figures are
+# much larger than other parameter values. Take the scaling into account in final storage
+# lower and upper bound constraints. The scaling values should be such that initial reservoir
+# values still remain higher than maximum hydro power generation.
+scalers = {
+    0: 1.0,
+    1: 1.0,
+    2: 1.0,
+    3: 1.0,
+    4: 1.0,
+    5: 1.0,
+    6: 1.0,
+    7: 1.0,
+}
+
 for y, idx in enumerate(start_indices):
     week = int(idx / (7 * 24))     # Fix. 01/01/2014 is Wednesday.
 
@@ -430,7 +451,7 @@ for y, idx in enumerate(start_indices):
         h1 = y*num_hours_per_year
 
         h2 = (y+1)*num_hours_per_year
-        initial_storage[u][:, y] = weekly_reservoir[week, n]
+        initial_storage[u][:, y] = weekly_reservoir[week, n] / scalers[n]
         # Convert weekly inflow to hourly.
         inflows[u][:, h1:h2] = weekly_inflow[week, n] / 168
 
@@ -444,7 +465,7 @@ storage_change_ub = {
     6: 0.143, #0.05178,
     7: 0.204, #0.04949,
 }
-storage_change_ub = {k: 1.0 + v / 168 * num_hours_per_year for k, v in storage_change_ub.items()}
+storage_change_ub = {n: ((1.0 + v / 168 * num_hours_per_year) * scalers[n] - (scalers[n] - 1.0)) for n, v in storage_change_ub.items()}
 
 storage_change_lb = {
     0: 0.0,
@@ -456,8 +477,7 @@ storage_change_lb = {
     6: -0.055, #-0.0415,
     7: -0.07, #-0.0633,
 }
-storage_change_lb = {k: 1.0 + v / 168 * num_hours_per_year for k, v in storage_change_lb.items()}
-
+storage_change_lb = {n: ((1.0 + v / 168 * num_hours_per_year) * scalers[n] - (scalers[n] - 1.0)) for n, v in storage_change_lb.items()}
 
 # Build lines x nodes incidence matrix for existing lines.
 # List pairs of nodes that are connected. Note: these are in 1-based indexing.
