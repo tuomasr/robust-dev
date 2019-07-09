@@ -33,7 +33,6 @@ from helpers import (
     Timer,
     get_maximum_ramp,
     MyLogger,
-    get_investment_and_availability_decisions,
 )
 from plotting import create_investment_plots, create_emission_plots
 
@@ -84,12 +83,14 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
     if master_problem_algorithm == "benders_dc":
         from master_problem_benders_dc import (
             solve_master_problem,
+            get_investment_and_availability_decisions,
             get_investment_cost,
             get_emissions,
         )
     elif master_problem_algorithm == "milp_dc":
         from master_problem_dc import (
             solve_master_problem,
+            get_investment_and_availability_decisions,
             get_investment_cost,
             get_emissions,
         )

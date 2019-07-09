@@ -47,6 +47,13 @@ Emission reduction, generation expansion, robust optimization, stochastic progra
 
 \section{Introduction}
 
+% TODO:
+% - update introduction
+% - explain contributions
+% - explain constraints
+% - update case study, results, and analysis
+% - conclusions
+
 % introduction
 Most nations have ratified the Paris agreement that aims at capping the increase in the global average temperature by lowering greenhouse gas (GHG) emissions, for example \cite{Paris_agreement}. To this end, there are nation-level policies that set speficic goals for GHG emission reductions through increasing the share of renewable energy, for example \cite{EU_climate_action}. However, integrating large investments in variable renewable energy sources (vRES) such as wind and solar power to existing power systems is likely to require significant investments in transmission capacity as well as to flexible generation technologies (e.g. hydro, combined cycle gas turbines, CCGT), dispatchable RES (e.g biomass), and storage to guarantee the power system adequacy and security \cite{Zappa}.
 
@@ -340,22 +347,27 @@ The subproblem can be solved directly as a MIQP using solvers such as Gurobi. Al
 
 We study what investments are required to decrease the initial emissions of the Nordic and Baltic electricity system under uncertain generation and transmission parameters and worst-case realization of demand. More specifically, we use the Nordic and Baltic network and its generation, load, and transmission line data from \cite{Virasjoki} as a base.
 
-Our case study has 10 time steps in the master problem ($t$) for making investments. For each master problem time step, we consider 24 time steps in the subproblem ($\tau$). Consequently, the subproblem has 240 time steps in total. We define variable load and wind as well as solar power data so that, for each master problem time step, we sample one day in 2014 and use data from that day. The load values increase each year by a factor of $D = 1.03$. Hydro power data such as initial storage levels ($S_{o, \tau, u}^0$) and inflows ($I_{o, \tau, u}$) have weekly granularity so these data are taken from the week that each sampled day belongs to. In addition, we modify the system by introducing 3 equally weighted ($W_o = 1/3$) operating conditions by sampling uniform noise from $\textrm{U}(-100 \textrm{ MW}, 100 \textrm{ MW})$ to all generation ($G^{max}_{o, \tau, u}$) and transmission capacities ($F^{max}_{o, \tau, \ell}$ and $F^{min}_{o, \tau, \ell}$).
+We augment the base system by having 10 time steps in the master problem ($t$) for making investments. For each master problem time step, we consider 24 time steps in the subproblem ($\tau$). Consequently, the subproblem has 240 time steps in total. We define variable load and wind as well as solar power data so that, for each master problem time step, we sample one day and use its hourly data for 24 consecutive subproblem time steps. We assume that load values increase by a factor of $D = 1.03$ at each master problem time step. Hydro power data such as initial storage levels ($S_{o, \tau, u}^0$) and inflows ($I_{o, \tau, u}$) have weekly granularity so we take the weekly value corresponding to each sampled day. In addition, we modify the system by introducing 3 equally weighted ($W_o = 1/3$) operating conditions by sampling uniform noise from $\textrm{U}(-100 \textrm{ MW}, 100 \textrm{ MW})$ to all generation ($G^{max}_{o, \tau, u}$) and transmission capacities ($F^{max}_{o, \tau, \ell}$ and $F^{min}_{o, \tau, \ell}$).
 
-A maximum 20000 MW of gas, CCGT, oil, wind and solar power can be built at each node. In addition, there is a candidate DC transmission line between each neighboring node pair with 2000 MW of capacity to both directions. The investment parameters are shown in Table \ref{table_investment_parameters}. The upper bound for emissions for each master problem time step decreases linearly from $E_{0} = 100000 \textrm{ tonne}$ to $E_{9} = 20000 \textrm{ tonne}$.
+Gas, CCGT, oil, biomass, wind and solar power can be built at each (non-dummy) node. Each candidate unit has a maximum capacity ($G^{inv,max}_u$) of 10000 MW except for biomass units which we limit to 1000 MW due to limited fuel supply. In addition, neighboring (non-dummy) node pairs can be connected with two candidate DC transmission lines with both having 1000 MW of capacity to both directions. The investment cost parameters are shown in Table \ref{table_investment_parameters}. The upper bound for emissions for each master problem time step decreases linearly from $E_{0} = 100000 \textrm{ tonne}$ to $E_{9} = 20000 \textrm{ tonne}$.
 
 The uncertainty budget in the subproblem ($\Lambda^w$) is 2 meaning that the model can change load in maximum of 2 nodes. Each change the model makes increases load in a node for all operating conditions and subproblem time steps by $\hat{D}_{\tau, n} = 100 \textrm{ MWh}$. The linearization variables $\Lambda^{min}$ and $\Lambda^{max}$ are -1000 €/MWh and 1000 €/MWh, respectively.
 
 \begin{table}[htpb]
 \centering
 \begin{tabular}{l| c} \hline
-Parameter 				& Value  \\ \hline
-$P$ 					& $\frac{1}{365}$ \\
-$R$						& 1.1		\\
-$C^x_{t, u}$ (€/MW)		& 10^6    \\
-$C^x_{t, \ell}$ (€)		& 10^8	\\
+Parameter 					& Value  \\ \hline
+$P$ 						& $\frac{1}{365}$ \\
+$R$							& 1.1		\\
+$C^x_{t, u}$ Gas (€/MW)		& 0.8 \cdot 10^6    \\
+$C^x_{t, u}$ CCGT (€/MW)	& 1.0 \cdot 10^6    \\
+$C^x_{t, u}$ Oil (€/MW)		& 0.8 \cdot 10^6    \\
+$C^x_{t, u}$ Biomass (€/MW)	& 3.9 \cdot 10^6    \\
+$C^x_{t, u}$ Wind (€/MW)	& 1.6 \cdot 10^6    \\
+$C^x_{t, u}$ Solar (€/MW)	& 1.8 \cdot 10^6    \\
+$C^x_{t, \ell}$ (€)			& 2.0 \cdot 10^8	\\
 \end{tabular}
-\caption{Investment parameters in the case study}
+\caption{Investment cost parameters in the case study}
 \label{table_investment_parameters}
 \end{table}
 
@@ -365,8 +377,8 @@ We solve this case study using the Algorithm \ref{alg_algorithm}. The results ar
 \centering
 \begin{tabular}{c c| c c c} \hline
 Master problem 			& Subproblem & Objective value (€) 	& Solution time (s) 	& Iterations \\ \hline
-Benders					& MIQP 				& 85719742.5196 		& 1859.21				& 3				 \\
-MILP					& MIQP 				& 85719742.5196 		& 716.54				& 3				 \\
+Benders					& MIQP 				& 98047281.846 		& 2704.97				& 3				 \\
+MILP					& MIQP 				& 98047281.846 		& 3975.56				& 3				 \\
 \end{tabular}
 \caption{}
 \label{table_results}
