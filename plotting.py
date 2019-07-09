@@ -75,7 +75,7 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
     colors = []
     legend_labels = []
 
-    palette = {k: v for k, v in zip(candidate_unit_types, ["r", "c", "m", "b", "y"])}
+    palette = {k: v for k, v in zip(candidate_unit_types, ["r", "c", "m", "g", "b", "y"])}
     candidate_unit_name_map = {k: v for k, v in zip(candidate_unit_types, candidate_unit_type_names)}
 
     for key, val in xhat.items():
@@ -111,7 +111,7 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
             data,
             series_labels,
             category_labels,
-            y_label="Cumulative new wind power capacity (MW)",
+            y_label="Cumulative new generation capacity (MW)",
             colors=colors,
             legend_labels=legend_labels,
         )
