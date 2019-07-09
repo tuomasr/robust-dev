@@ -6,6 +6,7 @@ from __future__ import division
 from __future__ import print_function
 
 import argparse
+import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -31,6 +32,7 @@ from helpers import (
     concatenate_to_uncertain_variables_array,
     Timer,
     get_maximum_ramp,
+    MyLogger,
 )
 from plotting import create_investment_plots, create_emission_plots
 
@@ -85,20 +87,6 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
             get_investment_cost,
             get_emissions,
         )
-    elif master_problem_algorithm == "benders_ac":
-        from master_problem_benders import (
-            solve_master_problem,
-            get_investment_and_availability_decisions,
-            get_investment_cost,
-            get_emissions,
-        )
-    elif master_problem_algorithm == "milp_ac":
-        from master_problem import (
-            solve_master_problem,
-            get_investment_and_availability_decisions,
-            get_investment_cost,
-            get_emissions,
-        )
     elif master_problem_algorithm == "milp_dc":
         from master_problem_dc import (
             solve_master_problem,
@@ -108,19 +96,7 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
         )
 
     # Import an implementation depending on the subproblem algorithm choice.
-    if subproblem_algorithm == "benders_ac":
-        from subproblem_benders import (
-            solve_subproblem,
-            get_uncertain_variables,
-            get_uncertainty_decisions,
-        )
-    elif subproblem_algorithm == "milp_ac":
-        from subproblem_milp import (
-            solve_subproblem,
-            get_uncertain_variables,
-            get_uncertainty_decisions,
-        )
-    elif subproblem_algorithm == "miqp_dc":
+    if subproblem_algorithm == "miqp_dc":
         from subproblem_miqp import (
             solve_subproblem,
             get_uncertain_variables,
@@ -312,13 +288,15 @@ def main():
     parser.add_argument(
         "master_problem_algorithm",
         type=str,
-        choices=("benders_ac", "benders_dc", "milp_ac", "milp_dc"),
+        choices=("benders_dc", "milp_dc"),
     )
     parser.add_argument(
-        "subproblem_algorithm", type=str, choices=("benders_ac", "milp_ac", "miqp_dc")
+        "subproblem_algorithm", type=str, choices=("miqp_dc")
     )
 
     args = parser.parse_args()
+
+    sys.stdout = MyLogger(args.master_problem_algorithm, args.subproblem_algorithm)
 
     run_robust_optimization(args.master_problem_algorithm, args.subproblem_algorithm)
 

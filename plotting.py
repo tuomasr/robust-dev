@@ -60,10 +60,11 @@ def stacked_bar(data, series_labels, category_labels, y_label,
 def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_algorithm):
     """Create plots for transmission and generation investments."""
     # Pickling is for debugging... ignore.
-    with open("xhat.pickle", "w") as f:
+    algo_choice = (master_problem_algorithm, subproblem_algorithm)
+    with open("xhat_%s_%s.pickle" % algo_choice, "w") as f:
         pickle.dump(xhat, f)
 
-    with open("yhat.pickle", "w") as f:
+    with open("yhat_%s_%s.pickle" % algo_choice, "w") as f:
         pickle.dump(yhat, f)
 
     # Collect data for generation investments.
@@ -205,13 +206,15 @@ def create_emission_plots(emissions, emission_prices,
 
 def test():
     """For debugging the plotting functions."""
-    with open("xhat.pickle", "r") as f:
+    algo_choice = "milp_dc", "miqp_dc"
+
+    with open("xhat_%s_%s.pickle" % algo_choice, "r") as f:
         xhat = pickle.load(f)
 
-    with open("yhat.pickle", "r") as f:
+    with open("yhat_%s_%s.pickle" % algo_choice, "r") as f:
         yhat = pickle.load(f)
 
-    create_investment_plots(xhat, yhat, "test", "test")
+    create_investment_plots(xhat, yhat, algo_choice[0], algo_choice[1])
 
 
 # test()
