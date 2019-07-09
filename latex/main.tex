@@ -93,9 +93,11 @@ This remaining of this paper is organized as follows. Section \ref{section_probl
 	\multicolumn{2}{l}{\textbf{Sets}} \\
 	$\Psi^G$ 					& existing generation units \\
 	$\Psi^L$ 						& existing transmission lines \\
+	$\Psi^{L,AC}$ 						& existing AC transmission lines \\
 	$\Psi^{G,H}$ 				& existing hydro units \\
 	$\Psi^{G+}$				& candidate generation units \\
 	$\Psi^{L+}$ 				& candidate transmission lines \\
+	$\Psi_n^G$ 					& existing and candidate generation units at node $n$ \\
 	$\Phi^{L1/L2/L3}$		& 1st/2nd/3rd level decision variables \\
 	$\Omega^M$ 					& master problem decisions variables \\
 	$\Omega^S$ 					& subproblem decision variables \\
@@ -318,15 +320,15 @@ For the subproblem, we set $\Omega^{S} = \{ \lambda_{o, \tau, n} \forall o, \tau
 &\label{sub_constr1}G_{o, \tau, u}^{emissions} \beta_{o, t(\tau)}^{emissions} = R^{-t(\tau)} C^g_{o, \tau, u}  W_o \quad \forall o, \tau, u \\
 &\mathbbm{1}_{\tau \in \Tau^0} \phi_{o, \tau, u}^{0} + \underline{\beta}_{o, \tau, u}^s - \mathbbm{1}_{\tau \notin \Tau^{-1}} \phi_{o, \tau, u} + \mathbbm{1}_{\tau \notin \Tau^0} \phi_{o, \tau - 1, u} + \nonumber \\
 &\mathbbm{1}_{\tau \in \Tau^{-1}} (\underline{\phi}_{o, \tau, u} - \bar{\phi}_{o, \tau, u}) = 0 \quad \forall o, \tau, u \in \Psi^{G, H} \\
-&-\lambda_{o, \tau, s(\ell)} + \lambda_{o, \tau, r(\ell)} + \mu_{o, \tau, \ell} - \nonumber \\
+&-\lambda_{o, \tau, s(\ell)} + \lambda_{o, \tau, r(\ell)} + \mathbbm{1}_{\ell \in \Psi^{L,AC}} \mu_{o, \tau, \ell} - \nonumber \\
 &\bar{\mu}_{o, \tau, \ell} + \underline{\mu}_{o, \tau, \ell} = 0 \quad \forall o, \tau, \ell \\
-&-\sum\limits_{\ell \in \Psi^L | s(\ell) = n} B_\ell \mu_{o, \tau, \ell} + \sum\limits_{\ell \in \Psi^L | r(\ell) = n} B_\ell \mu_{o, \tau, \ell} - \nonumber \\
+&-\sum\limits_{\ell \in \Psi^{L,AC} | s(\ell) = n} B_\ell \mu_{o, \tau, \ell} + \sum\limits_{\ell \in \Psi^{L,AC} | r(\ell) = n} B_\ell \mu_{o, \tau, \ell} - \nonumber \\
 &\bar{\mu}^{va}_{o, \tau, n} + \underline{\mu}^{va}_{o, \tau, n} + \mathbbm{1}_{n = 0} \mu^{ref}_{o, \tau} = 0 \quad \forall o, \tau, n \\
 &\label{sub_last}\text{Eqs. } (\ref{uncertainty_set}),
 \end{align}
 where the notation $n(u)$ indicates the node $n$ at which unit $u$ is located and $\mathbbm{1}_{cond}$ equals 1 if $cond$ is true and otherwise 0.
 
-The subproblem can be solved directly as a MIQP. Alternatively, the subproblem can be re-formulated as an MILP by linearizing the product of a continuous and a binary variable $\lambda_{o, \tau, n} d_{\tau, n}$ in the objective function (\ref{sub_obj}) exactly with $\lambda_{o, \tau, n} d_{\tau, n} = z_{o, \tau, n} \hat{D}_{\tau, n} + \lambda_{o, \tau, n} \tilde{D}_{\tau, n}$ and by adding the following constraints to the subproblem
+The subproblem can be solved directly as a MIQP. Alternatively, the subproblem can be re-formulated as an MILP by linearizing the product of a continuous and a binary variable in $\lambda_{o, \tau, n} d_{\tau, n} = \lambda_{o, \tau, n} D^{-t(\tau)} (\tilde{D}_{\tau, n} + w_n \hat{D}_{\tau, n})$ in the objective function (\ref{sub_obj}) exactly with $\lambda_{o, \tau, n} d_{\tau, n} = D^{-t(\tau)} (z_{o, \tau, n} \hat{D}_{\tau, n} + \lambda_{o, \tau, n} \tilde{D}_{\tau, n})$ and by adding the following constraints to the subproblem
 \begin{align}
 &\label{z_constr} z_{o, \tau, n} = \lambda_{o, \tau, n} - \tilde{\lambda}_{o, \tau, n} \quad \forall o, \tau, n \\
 &\Lambda^{min} w_n \leq z_{o, \tau, n} \leq \Lambda^{max} w_n \quad \forall o, \tau, n \\
@@ -336,20 +338,20 @@ The subproblem can be solved directly as a MIQP. Alternatively, the subproblem c
 \section{Case study: modified Nordic and Baltic network}
 \label{section_case_study}
 
-We study what investments are required to decrease the initial emissions of the Nordic and Baltic electricity system under uncertain generation and transmission parameters and worst-case realization of demand. More specifically, we use the Nordic and Baltic network and its generation, load, and transmission line data from \cite{Virasjoki} as a base. We modify this system by introducing 5 equally weighted ($W_o = 1/5$) operating conditions by sampling uniform noise from $\textrm{U}(-10 \textrm{ MW}, 10 \textrm{ MW})$ to all generation ($G^{max}_{o, \tau, u}$) and transmission capacities ($F^{max}_{o, \tau, \ell}$ and $F^{min}_{o, \tau, \ell}$). In addition, we sample initial storage levels ($S_{o, \tau, u}^0$) and inflows ($I_{o, \tau, u}$) of the hydro units as $\textrm{U}(0.2, 0.3)$ of their total capacity ($G_{o, \tau, u}^{max)$).
+We study what investments are required to decrease the initial emissions of the Nordic and Baltic electricity system under uncertain generation and transmission parameters and worst-case realization of demand. More specifically, we use the Nordic and Baltic network and its generation, load, and transmission line data from \cite{Virasjoki} as a base.
 
-Our case study has 10 time steps in the master problem ($t$) for making investments. For each master problem time step, we consider 24 time steps in the subproblem ($\tau$). Consequently, the subproblem has 240 time steps in total. Nominal demand ($\tilde{D}_{\tau, n}$) is computed as the average hourly demand in 2014 and repeated for each year.
+Our case study has 10 time steps in the master problem ($t$) for making investments. For each master problem time step, we consider 24 time steps in the subproblem ($\tau$). Consequently, the subproblem has 240 time steps in total. We define variable load and wind as well as solar power data so that, for each master problem time step, we sample one day in 2014 and use data from that day. The load values increase each year by a factor of $D = 1.03$. Hydro power data such as initial storage levels ($S_{o, \tau, u}^0$) and inflows ($I_{o, \tau, u}$) have weekly granularity so these data are taken from the week that each sampled day belongs to. In addition, we modify the system by introducing 3 equally weighted ($W_o = 1/3$) operating conditions by sampling uniform noise from $\textrm{U}(-100 \textrm{ MW}, 100 \textrm{ MW})$ to all generation ($G^{max}_{o, \tau, u}$) and transmission capacities ($F^{max}_{o, \tau, \ell}$ and $F^{min}_{o, \tau, \ell}$).
 
-A maximum 10000 MW of wind power with 0 kg/MW emission rate ($G^{emissions}_{o, \tau, u} \, \forall o, \tau, u \in \Psi^{G+}$) can be built at each node. In addition, there is a candidate DC transmission line between each node pair with 2000 MW of capacity to both directions. The investment parameters are shown in Table \ref{table_investment_parameters}. The upper bound for emissions for each master problem time step decreases linearly from $E_{0} \approx 50000 \textrm{ tonne}$ to $E_{9} = 5000 \textrm{ tonne}$.
+A maximum 20000 MW of gas, CCGT, oil, wind and solar power can be built at each node. In addition, there is a candidate DC transmission line between each neighboring node pair with 2000 MW of capacity to both directions. The investment parameters are shown in Table \ref{table_investment_parameters}. The upper bound for emissions for each master problem time step decreases linearly from $E_{0} = 100000 \textrm{ tonne}$ to $E_{9} = 20000 \textrm{ tonne}$.
 
-The uncertainty budget in the subproblem ($\Lambda^w$) is 2 meaning that the model can change load in maximum of 2 nodes. Each change the model makes increases load in a node for all operating conditions and subproblem time steps by $\hat{D}_{\tau, n} = 100 \textrm{ MW}$. The linearization variables $\Lambda^{min}$ and $\Lambda^{max}$ are -100 and 100, respectively.
+The uncertainty budget in the subproblem ($\Lambda^w$) is 2 meaning that the model can change load in maximum of 2 nodes. Each change the model makes increases load in a node for all operating conditions and subproblem time steps by $\hat{D}_{\tau, n} = 100 \textrm{ MWh}$. The linearization variables $\Lambda^{min}$ and $\Lambda^{max}$ are -1000 €/MWh and 1000 €/MWh, respectively.
 
 \begin{table}[htpb]
 \centering
 \begin{tabular}{l| c} \hline
-Parameter 						& Value  \\ \hline
-$P$ 									& $\frac{24}{365}$ \\
-$R$										& 1.1		\\
+Parameter 				& Value  \\ \hline
+$P$ 					& $\frac{1}{365}$ \\
+$R$						& 1.1		\\
 $C^x_{t, u}$ (€/MW)		& 10^6    \\
 $C^x_{t, \ell}$ (€)		& 10^8	\\
 \end{tabular}
@@ -361,41 +363,41 @@ We solve this case study using the Algorithm \ref{alg_algorithm}. The results ar
 
 \begin{table}[htpb]
 \centering
-\begin{tabular}{l| c c c} \hline
-Solution method 	& Objective value (€) 	& Solution time (s) & Iterations \\ \hline
-Benders						& 289700001.565 				& 4733.89					  & 3				 \\
-MILP							& 289700001.565 				& 8111.37					  & 3				 \\
+\begin{tabular}{c c| c c c} \hline
+Master problem 			& Subproblem & Objective value (€) 	& Solution time (s) 	& Iterations \\ \hline
+Benders					& MIQP 				& 85719742.5196 		& 1859.21				& 3				 \\
+MILP					& MIQP 				& 85719742.5196 		& 716.54				& 3				 \\
 \end{tabular}
 \caption{}
 \label{table_results}
 \end{table}
 
-Figure \ref{fig_emissions_trajectory} shows how emissions decrease from their initial level to 0 during the simulation horizon and Figure \ref{fig_emissions_prices_trajectory} shows emisssion prices. Figures \ref{fig_generation_investment} and \ref{fig_transmission_investment} show generation and transmission investments, respectively.
+Figure \ref{fig_emissions_trajectory} shows how emissions decrease from their initial level to the final desired level during the simulation horizon and Figure \ref{fig_emissions_prices_trajectory} shows the emisssion prices. Figures \ref{fig_generation_investment} and \ref{fig_transmission_investment} show the generation and transmission investments, respectively, for achieving the final emission level.
 
 \begin{figure}[htpb]
   \centering
-  \includegraphics[width=\linewidth]{emissions_trajectory.png}
+  \includegraphics[width=\linewidth]{emissions_trajectory_milp_dc_miqp_dc.png}
   \caption{Decrease in emissions during the simulation horizon}
   \label{fig_emissions_trajectory}
 \end{figure}
 
 \begin{figure}[htpb]
   \centering
-  \includegraphics[width=\linewidth]{emissions_prices_trajectory.png}
+  \includegraphics[width=\linewidth]{emissions_prices_trajectory_milp_dc_miqp_dc.png}
   \caption{Emissions prices during the simulation horizon}
   \label{fig_emissions_prices_trajectory}
 \end{figure}
 
 \begin{figure}[htpb]
 	\centering
-	\includegraphics[width=\linewidth]{generation_investment.png}
+	\includegraphics[width=\linewidth]{generation_investment_milp_dc_miqp_dc.png}
 	\caption{Generation investments during the simulation horizon}
 	\label{fig_generation_investment}
 \end{figure}
 
 \begin{figure}[htpb]
 	\centering
-	\includegraphics[width=\linewidth]{transmission_investment.png}
+	\includegraphics[width=\linewidth]{transmission_investment_milp_dc_miqp_dc.png}
 	\caption{Transmission investments during the simulation horizon}
 	\label{fig_transmission_investment}
 \end{figure}

@@ -4,6 +4,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import sys
 import time
 
 import numpy as np
@@ -172,3 +173,20 @@ class Timer:
     @property
     def solution_times(self):
         return self._collection
+
+# Based on: https://stackoverflow.com/questions/14906764/how-to-redirect-stdout-to-both-file-and-console-with-scripting
+# Makes print() to output to both terminal and a file.
+class MyLogger(object):
+    def __init__(self, master_problem_algorithm, subproblem_algorithm):
+        self.terminal = sys.stdout
+        self.log = open("%s_%s.log" % (master_problem_algorithm, subproblem_algorithm), "w")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+
+    def flush(self):
+        #this flush method is needed for python 3 compatibility.
+        #this handles the flush command by doing nothing.
+        #you might want to specify some extra behavior here.
+        pass

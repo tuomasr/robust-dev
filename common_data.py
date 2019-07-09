@@ -12,6 +12,7 @@ np.random.seed(13)
 
 # Solver method for master problem and subproblem.
 # -1 = automatic
+# 2 = Barrier + Crossover
 # 4 = deterministic concurrent (runs out of memory for bigger instances).
 master_method = -1
 subproblem_method = -1
@@ -253,7 +254,7 @@ assert len(emission_targets) == num_years
 # Generate a candidate wind power unit for each real node.
 candidate_units = []
 candidate_unit_types = [1, 2, 3, 8, 9]  # Gas, ccgt, oil, wind, solar.
-candidate_unit_type_names = ["Gas", "Gas CCGT", "Oil", "Wind", "Solar"]
+candidate_unit_type_names = ["Gas", "CCGT", "Oil", "Wind", "Solar"]
 candidate_unit_to_node = dict()
 unit_idx = len(existing_units)
 
