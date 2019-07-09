@@ -218,12 +218,13 @@ for u in existing_units:
 # 15: biomass-e
 # 16: waste-e
 # 17: peat-e
+# See also: https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/2_Volume2/V2_2_Ch2_Stationary_Combustion.pdf
 generation_type_to_emissions = {
     0: 0.34 / 0.41,
     1: 0.2 / 0.4,
     2: 0.2 / 0.54,
     3: 0.28 / 0.39,
-    4: 0.0 / 0.35,
+    4: 0.0 / 0.35,  # Biomass not in ETS, debated. First value is estimated to be 0.2 - 0.3.
     5: 0.39 / 0.37,
     6: 0.0 / 0.33,
     7: 0.0 / 0.85,
@@ -260,10 +261,10 @@ unit_idx = len(existing_units)
 
 generate_candidate_units = True
 maximum_candidate_unit_capacity_by_type = {
-    1: 1000.0,
-    2: 1000.0,
-    3: 1000.0,
-    4: 1000.0,
+    1: 10000.0,
+    2: 10000.0,
+    3: 10000.0,
+    4: 1000.0,  # Biomass potential.
     8: 10000.0,
     9: 10000.0,
 }
@@ -608,10 +609,10 @@ assert num_existing_lines == len(incidence) == len(F_max[0]) == len(F_min[0])
 # Generate candidate lines between each pair of real nodes.
 line_idx = len(existing_lines)
 candidate_lines = []
-candidate_line_capacity = 2000.0
+candidate_line_capacity = 1000.0
 generate_candidate_lines = True
 
-num_build_options = 1
+num_build_options = 2
 
 # 0: dk1
 # 1: dk2
@@ -687,14 +688,34 @@ weights = np.ones(num_scenarios) / float(num_scenarios)
 discount_factor = 1.10
 
 # Cost per megawatt.
+# 0: coal
+# 1: gas
+# 2: ccgt
+# 3: oil
+# 4: biomass
+# 5: oil shale
+# 6: nuclear
+# 7: hydro
+# 8: wind
+# 9: pv
+# See also: https://www.eia.gov/outlooks/aeo/assumptions/pdf/table_8.2.pdf
+cost_per_type = {
+    1: 0.8,
+    2: 1.0,
+    3: 0.8,
+    4: 3.9,
+    8: 1.6,
+    9: 1.8,
+}   # In millions.
+
 C_x = {
-    (year, unit): 1e6 * discount_factor ** (-year)
+    (year, unit): 1e6 * cost_per_type[unit_to_generation_type[unit]] * discount_factor ** (-year)
     for year in years
     for unit in candidate_units
 }
 # Cost per project.
 C_y = {
-    (year, line): 1e8 * discount_factor ** (-year)
+    (year, line): 2.0e8 * discount_factor ** (-year)
     for year in years
     for line in candidate_lines
 }

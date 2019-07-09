@@ -61,8 +61,6 @@ from helpers import (
     compute_objective_gap,
     is_year_first_hour,
     is_year_last_hour,
-    get_initial_transmission_investments,
-    get_investment_and_availability_decisions,
 )
 
 
@@ -84,6 +82,23 @@ def get_transmission_investment_cost(yhat):
         sum(sum(C_y[t, l] * yhat[t, l] for l in candidate_lines) for t in years)
         / annualizer
     )
+
+
+def get_initial_transmission_investments():
+    # Get initial transmission line investments.
+    initial_yhat = dict()
+    initial_y = dict()
+
+    for t in years:
+        for l in candidate_lines:
+            if t == 0:
+                initial_yhat[t, l] = 1.0
+            else:
+                initial_yhat[t, l] = 0.0
+
+            initial_y[t, l] = 1.0
+
+    return initial_yhat, initial_y
 
 
 def add_primal_variables(sp, iteration):
@@ -714,6 +729,52 @@ def update_slave(updatable_constrs, current_iteration, x, yhat, y):
                     mu_bar_constrs[o, t, l, v].RHS = (
                         line_built(y, t, l) * F_max[o, t, l]
                     )
+
+
+def get_investment_and_availability_decisions(initial=False, many_solutions=False):
+    # Read current investments to generation and transmission and whether the units and lines are
+    # operational at some time point.
+    current_xhat = dict()
+    current_yhat = dict()
+
+    current_x = dict()
+    current_y = dict()
+
+    initial_transmission_investment = 1.0
+
+    for t in years:
+        for u in candidate_units:
+            unit_type = unit_to_generation_type[u]
+            initial_generation_investment = maximum_candidate_unit_capacity_by_type[unit_type]
+
+            if initial:
+                if t == 0:
+                    current_xhat[t, u] = initial_generation_investment
+                else:
+                    current_xhat[t, u] = 0.0
+
+                current_x[t, u] = initial_generation_investment
+            else:
+                current_xhat[t, u] = xhat[t, u].x
+                current_x[t, u] = x[t, u].x
+
+        for l in candidate_lines:
+            if initial:
+                if t == 0:
+                    current_yhat[t, l] = initial_transmission_investment
+                else:
+                    current_yhat[t, l] = 0.0
+
+                current_y[t, l] = initial_transmission_investment
+            else:
+                if many_solutions:
+                    current_yhat[t, l] = float(int(yhat[t, l].Xn))
+                    current_y[t, l] = float(int(y[t, l].Xn))
+                else:
+                    current_yhat[t, l] = float(int(yhat[t, l].x))
+                    current_y[t, l] = float(int(y[t, l].x))
+
+    return current_xhat, current_yhat, current_x, current_y
 
 
 def get_emissions(g):
