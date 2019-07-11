@@ -283,7 +283,7 @@ def augment_master(
                         )
                         for u in existing_units
                     )
-                    + sum(d[t, n, v] * sigma[o, t, n, v] for n in real_nodes)
+                    + sum(d[o, t, n, v] * sigma[o, t, n, v] for n in real_nodes)
                     + sum(np.pi * rho_underline[o, t, n, v] for n in ac_nodes)
                     + sum(np.pi * rho_bar[o, t, n, v] for n in ac_nodes)
                     + sum(
@@ -359,7 +359,7 @@ def augment_master(
                         )
                         for u in existing_units
                     )
-                    + sum(d[t, n, v] * sigma[o, t, n, v] for n in real_nodes)
+                    + sum(d[o, t, n, v] * sigma[o, t, n, v] for n in real_nodes)
                     + sum(np.pi * rho_underline[o, t, n, v] for n in ac_nodes)
                     + sum(np.pi * rho_bar[o, t, n, v] for n in ac_nodes)
                     + sum(
@@ -431,12 +431,12 @@ def augment_slave(current_iteration, d, yhat, y):
         name="minimum_subproblem_objective_%d" % current_iteration,
     )
 
-    # Balance equation. Note that d[n, v] is input data from the subproblem.
+    # Balance equation. Note that d[o, t, n, v] is input data from the subproblem.
     sp.addConstrs(
         (
             sum(g[o, t, u, v] for u in node_to_unit[n])
             + sum(incidence[l, n] * f[o, t, l, v] for l in lines)
-            - (d[t, n, v] if n in real_nodes else 0.0)
+            - (d[o, t, n, v] if n in real_nodes else 0.0)
             == 0.0
             for o in scenarios
             for t in hours

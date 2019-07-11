@@ -104,7 +104,7 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
         )
 
     # Initial uncertain variables for the first master problem iteration.
-    d = np.zeros((len(hours), len(real_nodes), 1))
+    d = np.zeros((len(scenarios), len(hours), len(real_nodes), 1))
 
     # The main loop of the algorithm starts here.
     for iteration in range(MAX_ITERATIONS):

@@ -44,8 +44,8 @@ num_scenarios = 3
 scenarios = list(range(num_scenarios))
 
 # Years and hours.
-num_years = 10
-num_hours_per_year = 24
+num_years = 4
+num_hours_per_year = 5
 num_hours = num_years * num_hours_per_year
 
 annualizer = 365.0 * 24.0 / float(num_hours_per_year)
@@ -53,8 +53,12 @@ annualizer = 365.0 * 24.0 / float(num_hours_per_year)
 years = list(range(num_years))
 hours = list(range(num_hours))
 
-# Sample starting days for each year.
-start_indices = np.random.randint(0, 364, size=num_years)*24
+# Load representative days
+representative_days = np.load("representative_days.npy")
+
+assert num_scenarios == len(representative_days)
+
+start_indices = representative_days*24
 end_indices = start_indices + num_hours_per_year
 
 # Nodes.
@@ -80,20 +84,23 @@ nodes = list(range(num_nodes))
 
 # Load.
 load_real_nodes = np.genfromtxt("load.csv", delimiter=";", skip_header=1)
-load = np.zeros((num_hours, num_real_nodes))
+load = np.zeros((num_scenarios, num_hours, num_real_nodes))
 
 # Read load for the sampled days.
 load_growth = 1.03  # Yearly growth.
 
 uncertainty_demand_increase = np.ones_like(load) * uncertainty_demand_increase_factor
 
-for i, (start, end) in enumerate(zip(start_indices, end_indices)):
-    load_growth_factor = load_growth ** i
+for y in years:
+    for o, (start, end) in enumerate(zip(start_indices, end_indices)):
+        load_growth_factor = load_growth ** y
+        load_slice = load_real_nodes[start:end]
 
-    load_slice = load_real_nodes[start:end]
-    load[i*num_hours_per_year:(i+1)*num_hours_per_year, :] = load_slice * load_growth_factor
+        h1 = y*num_hours_per_year
+        h2 = (y+1)*num_hours_per_year
 
-    uncertainty_demand_increase[i*num_hours_per_year:(i+1)*num_hours_per_year, :] *= load_growth_factor
+        uncertainty_demand_increase[o, h1:h2, :] *= load_growth_factor
+        load[o, h1:h2, :] = load_slice * load_growth_factor
 
 # Units.
 generation_capacities = np.genfromtxt(
@@ -113,16 +120,19 @@ all_pv_rates = np.genfromtxt(
 wind_unit_idx = 8
 pv_unit_idx = 9
 
-for i, (start, end) in enumerate(zip(start_indices, end_indices)):
-    wind_slice = all_wind_rates[start:end, 1:]  # Skip first (hour) column.
-    pv_slice = all_pv_rates[start:end, 1:]
+wind_rates = np.zeros_like(load)
+pv_rates = np.zeros_like(load)
 
-    if i == 0:
-        wind_rates = wind_slice
-        pv_rates = pv_slice
-    else:
-        wind_rates = np.concatenate((wind_rates, wind_slice))
-        pv_rates = np.concatenate((pv_rates, pv_slice))
+for y in years:
+    for o, (start, end) in enumerate(zip(start_indices, end_indices)):
+        wind_slice = all_wind_rates[start:end, 1:]  # Skip first (hour) column.
+        pv_slice = all_pv_rates[start:end, 1:]
+
+        h1 = y*num_hours_per_year
+        h2 = (y+1)*num_hours_per_year
+
+        wind_rates[o, h1:h2, :] = wind_slice
+        pv_rates[o, h1:h2, :] = pv_slice
 
 # Compile information about existing units by looping the table of
 # generation capacities (real nodes x generation types).
@@ -356,9 +366,9 @@ for u in units:
     t = unit_to_generation_type[u]
 
     if t == wind_unit_idx:
-        availability_rates[:, :, u] = wind_rates[:, unit_to_node[u]]
+        availability_rates[:, :, u] = wind_rates[:, :, unit_to_node[u]]
     elif t == pv_unit_idx:
-        availability_rates[:, :, u] = pv_rates[:, unit_to_node[u]]
+        availability_rates[:, :, u] = pv_rates[:, :, unit_to_node[u]]
     else:
         availability_rates[:, :, u] = conventional_rates[t]
 
@@ -452,18 +462,19 @@ scalers = {
     7: 1.0,
 }
 
-for y, idx in enumerate(start_indices):
-    week = int(idx / (7 * 24))     # Fix. 01/01/2014 is Wednesday.
+for y in years:
+    for o, idx in enumerate(start_indices):
+        week = int(idx / (7 * 24))     # Fix. 01/01/2014 is Wednesday.
 
-    for u in hydro_units:
-        n = nodemap[unit_to_node[u]]
+        for u in hydro_units:
+            n = nodemap[unit_to_node[u]]
 
-        h1 = y*num_hours_per_year
+            h1 = y*num_hours_per_year
+            h2 = (y+1)*num_hours_per_year
 
-        h2 = (y+1)*num_hours_per_year
-        initial_storage[u][:, y] = weekly_reservoir[week, n] / scalers[n]
-        # Convert weekly inflow to hourly.
-        inflows[u][:, h1:h2] = weekly_inflow[week, n] / 168
+            initial_storage[u][o, y] = weekly_reservoir[week, n] / scalers[n]
+            # Convert weekly inflow to hourly.
+            inflows[u][o, h1:h2] = weekly_inflow[week, n] / 168
 
 storage_change_ub = {
     0: 0.0,
@@ -681,8 +692,8 @@ ref_node = 1
 
 assert len(incidence) == F_max.shape[-1] == F_min.shape[-1] == num_lines
 
-# Equal scenario weights.
-weights = np.ones(num_scenarios) / float(num_scenarios)
+# Scenarios weights.
+weights = np.load("scenario_weights.npy")
 
 # Investment parameters.
 discount_factor = 1.10

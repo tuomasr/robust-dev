@@ -202,12 +202,12 @@ def augment_master_problem(current_iteration, d):
         name="minimum_subproblem_objective_%d" % current_iteration,
     )
 
-    # Balance equation. Note that d[n, v] is input data from the subproblem.
+    # Balance equation. Note that d[o, t, n, v] is input data from the subproblem.
     m.addConstrs(
         (
             sum(g[o, t, u, v] for u in node_to_unit[n])
             + sum(incidence[l, n] * f[o, t, l, v] for l in lines)
-            - (d[t, n, v] if n in real_nodes else 0.0)
+            - (d[o, t, n, v] if n in real_nodes else 0.0)
             == 0.0
             for o in scenarios
             for t in hours
