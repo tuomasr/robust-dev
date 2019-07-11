@@ -62,8 +62,8 @@ from helpers import (
 num_hours = len(hours)
 
 # Problem-specific data: Demand at each node in each time hour and uncertainty in it.
-nominal_demand = load[:, : len(real_nodes)]
-demand_increase = uncertainty_demand_increase * np.ones_like(nominal_demand)
+nominal_demand = load
+demand_increase = uncertainty_demand_increase
 
 # Create the model for the subproblem.
 m = Model("subproblem")
@@ -78,13 +78,6 @@ K = 1000.0
 # Demand is fixed for the dummy nodes that do not contain any load.
 # For real nodes that contain load, add hour- and nodewise uncertain demand variables and
 # nodewise binary variables for deviating from the nominal demand values.
-d = m.addVars(
-    hours,
-    real_nodes,
-    name="uncertain_demand",
-    lb=0.0,
-    ub=nominal_demand + demand_increase,
-)
 # Deviations are possible only for real nodes that contain load.
 w = m.addVars(real_nodes, name="demand_deviation", vtype=GRB.BINARY)
 
@@ -182,8 +175,8 @@ def get_objective(x, y):
     # Define subproblem objective function for fixed x and y (unit and line investments).
     obj = sum(
         sum(
-            w[n] * demand_increase[t, n] * lambda_[o, t, n]
-            + lambda_[o, t, n] * nominal_demand[t, n]
+            w[n] * demand_increase[o, t, n] * lambda_[o, t, n]
+            + lambda_[o, t, n] * nominal_demand[o, t, n]
             for n in real_nodes
         )
         - sum(beta_bar[o, t, u] * get_effective_capacity(o, t, u, x) for u in units if unit_built(x, t, u))
@@ -364,13 +357,10 @@ def solve_subproblem(x, y):
 def get_uncertain_variables():
     # Get the names and values of uncertain variables of the subproblem.
     names = np.array([w[n].varName for n in real_nodes])
-    values = np.array(
-        [
-            float(int(w[n].x)) * demand_increase[:, n] + nominal_demand[:, n]
-            for n in real_nodes
-        ]
-    )
-    values = np.transpose(values)
+
+    values = np.zeros_like(nominal_demand)
+    for n in real_nodes:
+        values[:, :, n] = float(int(w[n].x)) * demand_increase[:, :, n] + nominal_demand[:, :, n]
 
     return names, values
 
