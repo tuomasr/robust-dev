@@ -13,8 +13,9 @@ np.random.seed(13)
 # Solver method for master problem and subproblem.
 # -1 = automatic
 # 2 = Barrier + Crossover
+# 3 = concurrent
 # 4 = deterministic concurrent (runs out of memory for bigger instances).
-master_method = -1
+master_method = 3
 subproblem_method = -1
 
 # Custom configuration for both problems.
@@ -44,8 +45,8 @@ num_scenarios = 3
 scenarios = list(range(num_scenarios))
 
 # Years and hours.
-num_years = 4
-num_hours_per_year = 5
+num_years = 10
+num_hours_per_year = 24
 num_hours = num_years * num_hours_per_year
 
 annualizer = 365.0 * 24.0 / float(num_hours_per_year)
@@ -60,6 +61,7 @@ assert num_scenarios == len(representative_days)
 
 start_indices = representative_days*24
 end_indices = start_indices + num_hours_per_year
+
 
 # Nodes.
 # There are 8 "real" nodes and 6 dummy nodes with no generation or load.
@@ -87,7 +89,7 @@ load_real_nodes = np.genfromtxt("load.csv", delimiter=";", skip_header=1)
 load = np.zeros((num_scenarios, num_hours, num_real_nodes))
 
 # Read load for the sampled days.
-load_growth = 1.03  # Yearly growth.
+load_growth = 1.01  # Yearly growth.
 
 uncertainty_demand_increase = np.ones_like(load) * uncertainty_demand_increase_factor
 
@@ -204,7 +206,7 @@ generation_type_to_cost = {
 C_g = np.array([], dtype=np.float32)
 for u in existing_units:
     cost = generation_type_to_cost[unit_to_generation_type[u]]
-    C_g = np.append(C_g, [cost * np.random.uniform(0.8, 1.2)])
+    C_g = np.append(C_g, [cost * np.random.uniform(1.0, 1.0)])
 
 # Greenhouse gas emissions.
 # The first figure is emissions factor in kg/kWh, which is the same as tonne/MWh.
@@ -256,15 +258,18 @@ for u in existing_units:
     G_emissions = np.append(G_emissions, [emissions])
 
 # Maximum emissions by year.
-start_emissions = 100000.0
-final_emissions = 20000.0
+# See:
+# https://www.eea.europa.eu/data-and-maps/data/data-viewers/greenhouse-gases-viewer
+# https://emis.vito.be/sites/emis.vito.be/files/articles/3331/2016/CO2EmissionsfromFuelCombustion_Highlights_2016.pdf
+start_emissions = 90000.0
+final_emissions = 35000.0   # approx. 90 000 * (1-0.022)^9.
 emission_targets = np.linspace(start_emissions, final_emissions, num_years)
 
 assert len(emission_targets) == num_years
 
 # Generate a candidate wind power unit for each real node.
 candidate_units = []
-candidate_unit_types = [1, 2, 3, 4, 8, 9]  # Gas, ccgt, oil, biomass, wind, solar.
+candidate_unit_types = [1, 2, 3, 4, 8, 9]  # gas, CCGT, oil, biomass, wind, solar.
 candidate_unit_type_names = ["Gas", "CCGT", "Oil", "Biomass", "Wind", "Solar"]
 candidate_unit_to_node = dict()
 unit_idx = len(existing_units)
@@ -314,8 +319,9 @@ num_units = len(units)
 
 # Augment the arrays to have correct dimensions.
 G_max = np.tile(G_max, (num_scenarios, num_hours, 1))
-G_max += np.random.uniform(-100.0, 50.0, (num_scenarios, num_hours, num_units))
+G_max += np.random.uniform(-50.0, 0.0, (num_scenarios, num_hours, num_units))
 G_max[:, :, :] = np.maximum(G_max[:, :, :], 0.0)
+G_max = np.round(G_max, 0)  # Capacities are not fractional usually.
 
 # Gather availability rates for all generation types.
 # 0: coal
@@ -623,7 +629,7 @@ candidate_lines = []
 candidate_line_capacity = 1000.0
 generate_candidate_lines = True
 
-num_build_options = 2
+num_build_options = 1
 
 # 0: dk1
 # 1: dk2
@@ -677,18 +683,20 @@ num_lines = len(lines)
 
 # Augment the transmission capacity arrays to have expected dimensions.
 F_max = np.tile(F_max, (num_scenarios, num_hours, 1))
-F_max += np.random.uniform(-100.0, 10.0, (num_scenarios, num_hours, num_lines))
+F_max += np.random.uniform(-50.0, 0.0, (num_scenarios, num_hours, num_lines))
 F_max[:, :, :] = np.maximum(F_max[:, :, :], 0.0)
+F_max = np.round(F_max, 0)  # Capacities are not usually fractional.
 
 F_min = np.tile(F_min, (num_scenarios, num_hours, 1))
-F_min += np.random.uniform(-10.0, 100.0, (num_scenarios, num_hours, num_lines))
+F_min += np.random.uniform(0.0, 50.0, (num_scenarios, num_hours, num_lines))
 F_min[:, :, :] = np.minimum(F_min[:, :, :], 0.0)
+F_min = np.round(F_min, 0)
 
 # Susceptance.
-B = np.ones(num_lines) * 1e3
+B = np.ones(num_lines) * 1e5
 
 # Reference node.
-ref_node = 1
+ref_node = 7
 
 assert len(incidence) == F_max.shape[-1] == F_min.shape[-1] == num_lines
 
@@ -696,7 +704,7 @@ assert len(incidence) == F_max.shape[-1] == F_min.shape[-1] == num_lines
 weights = np.load("scenario_weights.npy")
 
 # Investment parameters.
-discount_factor = 1.10
+discount_factor = 1.03
 
 # Cost per megawatt.
 # 0: coal
@@ -726,7 +734,7 @@ C_x = {
 }
 # Cost per project.
 C_y = {
-    (year, line): 2.0e8 * discount_factor ** (-year)
+    (year, line): 1.0e9 * discount_factor ** (-year)
     for year in years
     for line in candidate_lines
 }

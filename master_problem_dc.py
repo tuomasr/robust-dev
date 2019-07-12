@@ -175,7 +175,7 @@ m.addConstrs(
 )
 
 # Variable representing the subproblem objective value.
-theta = m.addVar(name="theta", lb=-999999999.999, ub=GRB.INFINITY)
+theta = m.addVar(name="theta", lb=0.0, ub=GRB.INFINITY)
 
 # Set master problem objective function. The optimal solution is no investment initially.
 m.setObjective(get_investment_cost(xhat, yhat) + theta, GRB.MINIMIZE)
@@ -341,11 +341,13 @@ def augment_master_problem(current_iteration, d):
     m.addConstrs(
         (
             sum(
-                g[o, t, u, v] * G_emissions[o, t, u] for u in units for t in to_hours(y)
+                weights[o] * g[o, t, u, v] * G_emissions[o, t, u]
+                for o in scenarios
+                for t in to_hours(y)
+                for u in units
             )
             - emission_targets[y]
             <= 0.0
-            for o in scenarios
             for y in years
         ),
         name="maximum_emissions_%d" % current_iteration,
@@ -403,15 +405,15 @@ def get_investment_and_availability_decisions(initial=False, many_solutions=Fals
 def get_emissions(g):
     i = g.keys()[0][-1]
 
-    emissions = np.zeros((len(scenarios), len(years)))
+    emissions = np.zeros(len(years))
 
-    for o in scenarios:
-        for y in years:
-            emissions[o, y] = sum(
-                g[o, t, u, i].x * G_emissions[o, t, u]
-                for t in to_hours(y)
-                for u in units
-            )
+    for y in years:
+        emissions[y] = sum(
+            weights[o] * g[o, t, u, i].x * G_emissions[o, t, u]
+            for o in scenarios
+            for t in to_hours(y)
+            for u in units
+        )
 
     return emissions
 

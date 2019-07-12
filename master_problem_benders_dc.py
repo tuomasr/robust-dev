@@ -219,8 +219,26 @@ sp.addConstrs(
         sum(xhat[t, u] for t in years) <= maximum_candidate_unit_capacity_by_type[unit_to_generation_type[u]]
         for u in candidate_units
     ),
-    name="maximum_unit_investment",
+    name="maximum_unit_investment1",
 )
+
+# sp.addConstrs(
+#     (
+#         xhat[t, u] <= maximum_candidate_unit_capacity_by_type[unit_to_generation_type[u]]
+#         for t in years
+#         for u in candidate_units
+#     ),
+#     name="maximum_unit_investment2",
+# )
+
+# sp.addConstrs(
+#     (
+#         x[t, u] <= maximum_candidate_unit_capacity_by_type[unit_to_generation_type[u]]
+#         for t in years
+#         for u in candidate_units
+#     ),
+#     name="maximum_unit_investment3",
+# )
 
 # Variable representing the subproblem objective value.
 theta = sp.addVar(name="theta", lb=0.0, ub=GRB.INFINITY)
@@ -321,8 +339,7 @@ def augment_master(
                 for v in range(1, iteration + 1)
             )
             - sum(
-                emission_targets[y] * beta_emissions[o, y, v]
-                for o in scenarios
+                emission_targets[y] * beta_emissions[y, v]
                 for y in years
                 for v in range(1, iteration + 1)
             )
@@ -397,8 +414,7 @@ def augment_master(
                 for v in range(1, iteration + 1)
             )
             - sum(
-                emission_targets[y] * beta_emissions[o, y, v]
-                for o in scenarios
+                emission_targets[y] * beta_emissions[y, v]
                 for y in years
                 for v in range(1, iteration + 1)
             )
@@ -572,11 +588,13 @@ def augment_slave(current_iteration, d, yhat, y):
     sp.addConstrs(
         (
             sum(
-                g[o, t, u, v] * G_emissions[o, t, u] for u in units for t in to_hours(y)
+                weights[o] * g[o, t, u, v] * G_emissions[o, t, u]
+                for o in scenarios
+                for t in to_hours(y)
+                for u in units
             )
             - emission_targets[y]
             <= 0.0
-            for o in scenarios
             for y in years
         ),
         name="maximum_emissions_%d" % current_iteration,
@@ -689,8 +707,8 @@ def obtain_constraints(current_iteration):
                     mu_bar_constrs[o, t, l, v] = sp.getConstrByName(max_name)
 
             for y in years:
-                name = "maximum_emissions_%d[%d,%d]" % (v, o, y)
-                beta_emissions_constrs[o, y, v] = sp.getConstrByName(name)
+                name = "maximum_emissions_%d[%d]" % (v, y)
+                beta_emissions_constrs[y, v] = sp.getConstrByName(name)
 
     all_constrs = (
         sigma_constrs,
@@ -780,15 +798,15 @@ def get_investment_and_availability_decisions(initial=False, many_solutions=Fals
 def get_emissions(g):
     i = g.keys()[0][-1]
 
-    emissions = np.zeros((len(scenarios), len(years)))
+    emissions = np.zeros(len(years))
 
-    for o in scenarios:
-        for y in years:
-            emissions[o, y] = sum(
-                g[o, t, u, i].x * G_emissions[o, t, u]
-                for t in to_hours(y)
-                for u in units
-            )
+    for y in years:
+        emissions[y] = sum(
+            weights[o] * g[o, t, u, i].x * G_emissions[o, t, u]
+            for o in scenarios
+            for t in to_hours(y)
+            for u in units
+        )
 
     return emissions
 
@@ -847,6 +865,8 @@ def solve_master_problem(current_iteration, d):
 
     sp.Params.InfUnbdInfo = 1
 
+    duplicates = 0
+
     # Initialize Benders.
     initialize_master()
     yhat, y = get_initial_transmission_investments()
@@ -891,6 +911,9 @@ def solve_master_problem(current_iteration, d):
 
             if k > 0 and solution_hash in solution_hashes:
                 continue
+            elif k == 0 and solution_hash in solution_hashes:
+                duplicates += 1
+                print("Current duplicates: %d. :(" % duplicates)
 
             solution_hashes.add(solution_hash)
 
@@ -925,3 +948,5 @@ def solve_master_problem(current_iteration, d):
             augment_master(dual_values, current_iteration, iteration, k, d)
 
     raise RuntimeError("Max iterations hit in Benders. LB: %f, UB: %f" % (lb, ub))
+
+master_problem = sp

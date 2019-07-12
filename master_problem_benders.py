@@ -571,7 +571,10 @@ def augment_slave(current_iteration, d, yhat, y):
     sp.addConstrs(
         (
             sum(
-                g[o, t, u, v] * G_emissions[o, t, u] for u in units for t in to_hours(y)
+                g[o, t, u, v] * G_emissions[o, t, u]
+                for o in scenarios
+                for t in to_hours(y)
+                for u in units
             )
             - emission_targets[y]
             <= 0.0
@@ -693,8 +696,8 @@ def obtain_constraints(current_iteration):
                         )
 
             for y in years:
-                name = "maximum_emissions_%d[%d,%d]" % (v, o, y)
-                beta_emissions_constrs[o, y, v] = sp.getConstrByName(name)
+                name = "maximum_emissions_%d[%d]" % (v, y)
+                beta_emissions_constrs[o, v] = sp.getConstrByName(name)
 
     all_constrs = (
         sigma_constrs,
@@ -807,15 +810,15 @@ def get_investment_and_availability_decisions(initial=False, many_solutions=Fals
 def get_emissions(g):
     i = g.keys()[0][-1]
 
-    emissions = np.zeros((len(scenarios), len(years)))
+    emissions = np.zeros(len(years))
 
-    for o in scenarios:
-        for y in years:
-            emissions[o, y] = sum(
-                g[o, t, u, i].x * G_emissions[o, t, u]
-                for t in to_hours(y)
-                for u in units
-            )
+    for y in years:
+        emissions[y] = sum(
+            g[o, t, u, i].x * G_emissions[o, t, u]
+            for o in scenarios
+            for t in to_hours(y)
+            for u in units
+        )
 
     return emissions
 
