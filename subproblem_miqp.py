@@ -73,7 +73,7 @@ if enable_custom_configuration:
     for parameter, value in GRB_PARAMS:
         m.setParam(parameter, value)
 
-K = 1000.0
+K = 9999.9
 
 # Demand is fixed for the dummy nodes that do not contain any load.
 # For real nodes that contain load, add hour- and nodewise uncertain demand variables and
@@ -144,7 +144,7 @@ beta_ramp_underline = m.addVars(
 
 # Maximum emissions dual variables.
 beta_emissions = m.addVars(
-    scenarios, years, name="dual_maximum_emissions", lb=0.0, ub=ub1
+    years, name="dual_maximum_emissions", lb=0.0, ub=ub1
 )
 
 # Transmission flow dual variables.
@@ -227,7 +227,7 @@ def get_objective(x, y):
     )
 
     obj -= sum(
-        beta_emissions[o, y] * emission_targets[y] for o in scenarios for y in years
+        beta_emissions[y] * emission_targets[y] for y in years
     )
 
     return obj
@@ -328,7 +328,7 @@ def set_dependent_constraints(x, y):
             + (beta_ramp_bar[o, t, u] if not is_year_last_hour(t) else 0.0)
             + (beta_ramp_underline[o, t - 1, u] if not is_year_first_hour(t) else 0.0)
             - (beta_ramp_underline[o, t, u] if not is_year_last_hour(t) else 0.0)
-            - (beta_emissions[o, to_year(t)] * G_emissions[o, t, u])
+            - (beta_emissions[to_year(t)] * weights[o] * G_emissions[o, t, u])
             - discount_factor ** (-to_year(t)) * C_g[o, t, u] * weights[o]
             == 0.0
             for o in scenarios
@@ -345,11 +345,10 @@ def solve_subproblem(x, y):
     set_subproblem_objective(x, y)
     m.optimize()
 
-    prices = dict()
-    for s in scenarios:
-        for y in years:
-            print("beta_emissions[%d, %d]:" % (s, y), beta_emissions[s, y].x)
-            prices[s, y] = beta_emissions[s, y].x
+    prices = []
+    for y in years:
+        print("beta_emissions[%d]:" % y, beta_emissions[y].x)
+        prices.append(beta_emissions[y].x)
 
     return m.objVal, prices
 

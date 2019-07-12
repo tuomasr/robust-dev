@@ -16,6 +16,8 @@
 \usetikzlibrary{calc,decorations.pathreplacing,positioning,shadows,backgrounds,arrows.meta}
 \DeclareUnicodeCharacter{20AC}{\EUR{}}
 
+\SetKwInOut{Initialization}{Initialization}
+
 \allowdisplaybreaks
 
 % avoid overflowing urls
@@ -30,6 +32,11 @@
 \newcommand\mycommfont[1]{\small\ttfamily{#1}}
 \SetCommentSty{mycommfont}
 
+\newcommand{\myin}{\,{\in}\,}
+\newcommand{\myeq}{\,{=}\,}
+\newcommand{\myleq}{\,{\leq}\,}
+\newcommand{\mycup}{\,{\cup}\,}
+\newcommand{\COtwo}{CO\textsubscript{2}\;}
 \newcommand{\Tau}{\mathrm{T}}
 
 \begin{document}
@@ -100,13 +107,12 @@ This remaining of this paper is organized as follows. Section \ref{section_probl
 	\multicolumn{2}{l}{\textbf{Sets}} \\
 	$\Psi^G$ 					& existing generation units \\
 	$\Psi^L$ 						& existing transmission lines \\
-	$\Psi^{L,AC}$ 						& existing AC transmission lines \\
+	$\Psi^{L,AC}$ 						& existing alternating current (AC) transmission lines \\
 	$\Psi^{G,H}$ 				& existing hydro units \\
 	$\Psi^{G+}$				& candidate generation units \\
 	$\Psi^{L+}$ 				& candidate transmission lines \\
-	$\Psi_n^G$ 					& existing and candidate generation units at node $n$ \\
 	$\Phi^{L1/L2/L3}$		& 1st/2nd/3rd level decision variables \\
-	$\Omega^M$ 					& master problem decisions variables \\
+	$\Omega^M$ 					& master problem decision variables \\
 	$\Omega^S$ 					& subproblem decision variables \\
 	$\Omega$						& uncertainty set \\
 	$\Xi$								& feasibility set \\
@@ -115,22 +121,22 @@ This remaining of this paper is organized as follows. Section \ref{section_probl
 	$\Tau^{-1}$ 					& last subproblem time step within each master problem time step \\
 	$\Tau^{ramp}$ 			& subproblem time steps in which the ramp constraints are considered \\
 	\multicolumn{2}{l}{\textbf{Parameters}} \\
-	$P$ 									& normalize investment cost to operation cost level \\
-	$W_o$ 												& the weight of operating condition $o$ \\
+	$P$ 				& scaling factor to make investment and operation costs comparable \\
+	$W_o$ 												& weight of operating condition $o$ \\
 	$D$ 								& demand growth factor \\
-	$\tilde{D}_{\tau, n}$ 				& nominal demand at node $n$ in period $\tau$ (MWh) \\
-	$\hat{D}_{\tau, n}$ 					& demand increase at node $n$ in period $\tau$ (MWh) \\
-	$E_{t}$ 											& emission target in period $t$ (tonne) \\
+	$\tilde{D}_{o, \tau, n}$ 				& nominal demand at node $n$ in condition $o$ in period $\tau$ (MWh) \\
+	$\hat{D}_{o, \tau, n}$ 					& demand increase at node $n$ in condition $o$ in period $\tau$ (MWh) \\
+	$E_{t}$ 						& \COtwo emission target in period $t$ (tonne) \\
 	$R$ 													& discount factor \\
 	$C^x_{t, u}$ 							& investment cost per 1 MW of candidate unit $u$ in period $t$ (€) \\
 	$C^y_{t, \ell}$ 			& investment cost of building candidate transmission line $\ell$ in period $t$ (€) \\
-	$C^g_{o, \tau, u}$ 			& generation cost of unit $u$ in condition $o$ in period $\tau$ (€/MWh) \\
-	$A_{o, t, u}$ 				& availability of unit $u$ in condition $o$ in period $\tau$ (\%) \\
+	$C^g_{u}$ 			& generation cost of unit $u$ (€/MWh) \\
+	$A_{o, \tau, u}$ 				& availability of unit $u$ in condition $o$ in period $\tau$ (\%) \\
 	$G^{inv, max}_{u}$ 				& maximum invested capacity in candidate unit $u$ (MW) \\
 	$G^{max}_{o, \tau, u}$ 				& maximum generation of unit $u$ in condition $o$ in period $\tau$ (MWh) \\
 	$G^{ramp,max}_{o, \tau, u}$		& maximum ramp up of unit $u$ in condition $o$ in period $\tau$ (MWh) \\
 	$G^{ramp,min}_{o, \tau, u}$		& maximum ramp down of unit $u$ in condition $o$ in period $\tau$ (MWh) \\
-	$G^{emission}_{o, \tau, u}$	& emission rate of unit $u$ in condition $o$ in period $\tau$ (tonne/MWh) \\
+	$G^{emission}_{u}$	& \COtwo emission rate of unit $u$ (tonne/MWh) \\
 	$S^0_{o, \tau, u}$ 		& initial storage level of hydro unit $u$ in condition $o$ in period $\tau$ (MWh) \\
 	$S^{max}_{o, \tau, u}$ & maximum final storage level of hydro unit $u$ in condition $o$ in period $\tau$ (MWh) \\
 	$S^{min}_{o, \tau, u}$ & minimum final storage level of hydro unit $u$ in condition $o$ in period $\tau$ (MWh) \\
@@ -141,13 +147,13 @@ This remaining of this paper is organized as follows. Section \ref{section_probl
 	$\Lambda^w$ 									& demand uncertainty budget \\
 	$\Lambda^{min/max}$ 					& minimum/maximum price in the exchange (€/MWh) \\
 	\multicolumn{2}{l}{\textbf{Binary variables}} \\
-	$\hat{y}_{t, \ell}$ 	& equals 1 if investment is made into candidate transmission line $\ell$ in period $t$ \\
-	$y_{t, \ell}$               & equals 1 if candidate transmission line $\ell$ is operational in period $t$ \\
+	$\hat{y}_{t, \ell}$ 	& equals 1 if the investment in candidate transmission line $\ell$ is made in period $t$ \\
+	$y_{t, \ell}$               & equals 1 if candidate transmission line $\ell$ is available in period $t$ \\
 	$w_n$                       & equals 1 if demand is increased from the nominal level at node $n$ \\
 	\multicolumn{2}{l}{\textbf{Continuous variables}} \\
 	$\hat{x}_{t, u}$           & new capacity of candidate generation unit $u$ built in period $t$ (MW) \\
 	$x_{t, u}$                 & total built capacity of candidate generation unit $u$ in period $t$ (MW) \\
-	$d_{\tau, n}$ 							& uncertain demand at node $n$ in period $\tau$ (MWh) \\
+	$d_{o, \tau, n}$ 							& uncertain demand at node $n$ in condition $o$ in period $\tau$ (MWh) \\
 	$z_{o, \tau, n}$ 				& auxiliary variables for linearizing $\lambda_{o, \tau, n} d_{\tau, n}$ (€) \\
 	$\lambda_{o, \tau, n}$					& price in condition $o$ at node $n$ in period $\tau$ (€/MWh) \\
 	$\tilde{\lambda}_{o, \tau, n}$ 	& auxiliary variables for linearizing $\lambda_{o, \tau, n} d_{\tau, n}$ (€) \\
@@ -159,7 +165,7 @@ This remaining of this paper is organized as follows. Section \ref{section_probl
 	$\bar{\beta}_{o, \tau, u}^{ramp}$ & dual variable for maximum ramp up of unit $u$ in condition $o$ in period $\tau$ (€/MWh) \\
 	$\underline{\beta}_{o, \tau, u}$ & dual variable for minimum generation of unit $u$ in condition $o$ in period $\tau$ (€/MWh) \\
 	$\underline{\beta}_{o, \tau, u}^{ramp}$	& dual variable for maximum ramp down of unit $u$ in condition $o$ in period $\tau$ (€/MWh) \\
-	$\beta_{o, t}^{emission}$ & dual variable for maximum emissions in condition $o$ in period $t$ (€/MWh) \\
+	$\beta_{t}^{emission}$ & dual variable for maximum \COtwo emission in period $t$ (€/MWh) \\
 	$\phi_{o, \tau, u}^{0}$ & dual variable for initial storage level of hydro unit $u$ in condition $o$ in period $\tau$ (€/MWh) \\
 	$\underline{\phi}_{o, \tau, u}$ & dual variable for minimum storage of hydro unit $u$ in condition $o$ in period $\tau$ (€/MWh) \\
 	$\phi_{o, \tau, u}$ & dual variable for storage level of hydro unit $u$ in condition $o$ in period $\tau$ (€/MWh) \\
@@ -179,28 +185,27 @@ This remaining of this paper is organized as follows. Section \ref{section_probl
 The stochastic robust optimization problem is
 
 \begin{align}
-&\label{saro_obj} \underset{\Phi^{L1}}{\text{min}} \, P \sum\limits_{t} R^{-t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell} \right] +  \\
-&\underset{\Phi^{L2} \in \Omega}{\text{max}} \quad \underset{\Phi^{L3} \in \Xi}{\text{min}} \sum\limits_o W_o \sum\limits_{\tau} R^{-t(\tau)} \sum\limits_{u} C^g_{o, \tau, u} g_{o, \tau, u} \\
+&\underset{\Phi^{L1}}{\text{min}} \, P \sum\limits_{t} R^{-t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell} \right] + \nonumber \\
+&\label{saro_obj}\underset{\Phi^{L2} \in \Omega}{\text{max}} \quad \underset{\Phi^{L3} \in \Xi}{\text{min}} \sum\limits_o W_o \sum\limits_{\tau} R^{-t(\tau)} \sum\limits_{u} C^g_{u} g_{o, \tau, u} \\
 &\text{subject to} \nonumber \\
 &\label{master_constraint_first} x_{t, u} = \sum\limits_{t' = 1}^{t} \hat{x}_{t', u} 	\quad \forall t, u \in \Psi^{G+} \\
 &x_{t, u} \leq G^{inv, max}_u \quad \forall t, u \in \Psi^{G+} \\
 &\label{master_constraint_last} y_{t, \ell} = \sum\limits_{t' = 1}^{t} \hat{y}_{t', \ell} 	\quad \forall t, \ell \in \Psi^{L+}
 \end{align}
-where $\Phi^{L1} = \{ \hat{x}_{t, u}, x_{t, u} \forall t, u \in \Psi^{G+}, \hat{y}_{t, \ell}, y_{t, \ell} \forall t, \ell \in \Psi^{L+} \}$, $\Phi^{L2} = \{ d_{\tau, n} \, \forall \tau, n, w_{n} \, \forall n \}$, and $\Phi^{L3} = \{ g_{o, \tau, u} \, \forall o, \tau, u, s_{o, \tau, u} \, \forall o, \tau, u \in \Psi^{G, H}, f_{o, \tau, \ell} \, \forall o, \tau, \ell, \delta_{o, \tau, n} \, \forall o, \tau, n \}$. The uncertainty set $\Omega$ is given by
+where \( \Phi^{L1} \myeq \{ \hat{x}_{t, u}, x_{t, u}, \forall u \myin \Psi^{G+}; \hat{y}_{t, \ell}, y_{t, \ell}, \forall \ell \myin \Psi^{L+} \}, \forall t \), \( \Phi^{L2} \myeq \{ d_{o, \tau, n}, \forall o, \tau; w_{n} \}, \forall n \), and \( \Phi^{L3} \myeq \{ g_{o, \tau, u}, \forall u; s_{o, \tau, u}, \forall u \myin \Psi^{G, H}; f_{o, \tau, \ell}, \forall \ell; \delta_{o, \tau, n}, \forall n \}, \forall o, \tau \). The uncertainty set $\Omega$ is given by
 \begin{align}
-\Omega = \{ &d_{\tau, n} = D^{-t(\tau)} (\tilde{D}_{\tau, n} + w_n \hat{D}_{\tau, n}) & \forall \tau, n \nonumber \\
+\Omega = \{ &d_{o, \tau, n} = D^{-t(\tau)} (\tilde{D}_{o, \tau, n} + w_n \hat{D}_{o, \tau, n}) & \forall o, \tau, n \nonumber \\
 &\label{uncertainty_set}\sum\limits_n w_{n} \leq \Lambda^w \}.
 \end{align}
-
-Given the optimal values $x_{t, u}^* \, \forall t, u \in \Psi^{G+}$, $y_{t, \ell}^* \, \forall t, \ell \in \Psi^{L+}$, and $d_{\tau, n}^* \, \forall \tau, n$, the feasibility set $\Xi(g_{o, \tau, u}, s_{o, \tau, u}, f_{o, \tau, \ell}, \delta_{o, \tau, n})$ is
+Given the optimal values \( x_{t, u}^*, \forall t, u \myin \Psi^{G+} \), \( y_{t, \ell}^*, \forall t, \ell \myin \Psi^{L+} \), and \( d_{o, \tau, n}^*, \forall o, \tau, n \), the feasibility set \( \Xi(g_{o, \tau, u}, s_{o, \tau, u}, f_{o, \tau, \ell}, \delta_{o, \tau, n}) \) is
 \begin{align}
-\{ &\sum\limits_{u \in \Psi^G_{n}} g_{o, \tau, u} - \sum\limits_{\ell | s(\ell) = n} f_{o, \tau, \ell} + \nonumber \\
-&\sum\limits_{\ell | r(\ell) = n} f_{o, \tau, \ell} = d_{\tau, n}^* \quad \forall o, \tau, n\\
-&0 \leq g_{o, \tau, u} \leq A_{o, t, u} G_{o, \tau, u}^{max} \quad \forall o, \tau, u \in \Psi_n^G \\
-&0 \leq g_{o, \tau, u} \leq A_{o, t, u} x_{t(\tau), u}^* \quad \forall o, \tau, u \in \Psi_n^{G+} \\
+\{ &\sum\limits_{u | n(u) = n} g_{o, \tau, u} - \sum\limits_{\ell | s(\ell) = n} f_{o, \tau, \ell} + \nonumber \\
+&\sum\limits_{\ell | r(\ell) = n} f_{o, \tau, \ell} = d_{o, \tau, n}^* \quad \forall o, \tau, n\\
+&0 \leq g_{o, \tau, u} \leq A_{o, \tau, u} G_{o, \tau, u}^{max} \quad \forall o, \tau, u \in \Psi_n^G \\
+&0 \leq g_{o, \tau, u} \leq A_{o, \tau, u} x_{t(\tau), u}^* \quad \forall o, \tau, u \in \Psi_n^{G+} \\
 &G^{ramp,min}_{o, \tau, u} \leq g_{o, \tau + 1, u} - g_{o, \tau, u} \quad \forall o, \tau \in \Tau^{ramp}, u \\
 &g_{o, \tau + 1, u} - g_{o, \tau, u} \leq G^{ramp,max}_{o, \tau, u} \quad \forall o, \tau \in \Tau^{ramp}, u \\
-&\sum\limits_{\tau \in t} \sum\limits_{u} g_{o, \tau, u} G^{emissions}_{o, \tau, u} \leq E_{t} \quad \forall o, t \\
+&\sum\limits_{o} \sum\limits_{\tau \in t} \sum\limits_{u} W_o G^{emission}_{o, \tau, u} g_{o, \tau, u} \leq E_{t} \quad \forall t \\
 &s_{o, \tau, u} \geq 0 \quad \forall o, \tau, u \in \Psi^{G, H} \\
 &s_{o, \tau, u} = S^0_{o, \tau, u} \quad \forall o, \tau \in \Tau^0, u \in \Psi^{G, H} \\
 &s_{o, \tau + 1, u} = s_{o, \tau, u} - g_{o, \tau, u} + I_{o, \tau, u} \, \, \forall o, \tau \in \Tau^{ramp}, u \in \Psi^{G, H} \\
@@ -211,7 +216,7 @@ Given the optimal values $x_{t, u}^* \, \forall t, u \in \Psi^{G+}$, $y_{t, \ell
 &-\pi \leq \delta_{o, \tau, n} \leq \pi \quad \forall o, \tau, n \\
 &\delta_{o, \tau, 0} = 0 \quad \forall o, \tau \}
 \end{align}
-where the notation $t(\tau)$ indicates to which master problem time step $t$ the subproblem time step $\tau$ is assigned to. Also, the notation $\tau \in t$ indicates subproblem time steps $\tau$ within a master problem time step $t$. The definition of the two different time scales and the related sets are shown in Figure \ref{fig_time_scales}. Hydro power is modeled following \cite{Debia} by assuming that each hydro power unit has one reservoir that can act as a storage. Finally, we assume that all candidate transmission lines are DC lines. This assumption reduces solution times because AC candidate lines would lead to constraints with a product of a binary and a continuous variable, which we would need to linearize.
+where the notation $n(u)$ indicates the node in which unit $u$ is located and $t(\tau)$ the master problem time step $t$ that the subproblem time step $\tau$ is assigned to. Also, the notation $\tau \in t$ indicates subproblem time steps $\tau$ within a master problem time step $t$. The definition of the two different time scales and the related sets are shown in Figure \ref{fig_time_scales}. Hydro power is modeled following \cite{Debia} by assuming that each hydro power unit has one reservoir that can act as a storage. Finally, we assume that all candidate transmission lines are direct current (DC) lines. This assumption reduces solution times because alternating current (AC) candidate lines would lead to constraints with a product of a binary and a continuous variable, which we would need to linearize.
 
 \begin{figure}[htpb]
 	%\centering
@@ -248,50 +253,54 @@ where the notation $t(\tau)$ indicates to which master problem time step $t$ the
 
 \subsection{Overview of the solution algorithm}
 
-The problem (\ref{saro_obj})-(\ref{master_constraint_last}) is solved using column-and-constraint algorithm in which solving the first minimization problem of (\ref{saro_obj}) and solving the max-min problem of (\ref{saro_obj}) alternate. These two alternating problems are called master problem (Eqs. (\ref{master_obj})-(\ref{master_last})) and subproblem (Eqs. (\ref{sub_obj})-(\ref{sub_last})), respectively. The whole solution algorithm is summarized in Algorithm \ref{alg_algorithm}.
+The problem (\ref{saro_obj})-(\ref{master_constraint_last}) is solved using column-and-constraint (CC) algorithm in which solving the first minimization problem of (\ref{saro_obj}) and solving the max-min problem of (\ref{saro_obj}) alternates. These two problems are called CC master problem (Eqs. (\ref{master_obj})-(\ref{master_last})) and CC subproblem (Eqs. (\ref{sub_obj})-(\ref{sub_last})), respectively. The alternation terminates when the total costs computed from the two problems match. The solution algorithm is described in detail in Algorithm \ref{alg_algorithm}.
 
 \begin{algorithm}
 \SetAlgoLined
 \DontPrintSemicolon
+%\SetKwInOut{Input}{Input}
+%\SetKwInOut{Output}{Output}
+\textbf{Input:} Transmission and generation parameters, CO\textsubscript{2} emission targets\;
+\textbf{Output:} Transmission and generation expansion plan\;
 $\epsilon \leftarrow 10^{-6}$ \;
 $LB \leftarrow -\infty$ \;
 $UB \leftarrow \infty$ \;
 $\nu \leftarrow 0$ \;
-$d_{\tau, n, \nu} \leftarrow \tilde{D}_{\tau, n} \quad \forall \tau, n$ \;
+$d_{o, \tau, n, \nu} \leftarrow \tilde{D}_{o, \tau, n} \quad \forall o, \tau, n$ \;
 \While{$(UB - LB) / UB \leq \epsilon$}{
-	\tcp*[l]{Solve the master problem}
-		Obtain $x_{t, u}^*, \hat{x}_{t, u}^* \, \forall t, u \in \Psi^{G+} \, , y_{t, \ell}^*, \hat{y}_{t, \ell}^* \, \forall t, \ell \in \Psi^{L+}$ by solving master problem in Eqs. (\ref{master_obj})-(\ref{master_last}) using $d_{\tau, n, \nu'} \quad \forall \tau, n, \nu' \leq \nu$. $LB$ is updated to the objective value of the master problem. \;
+	\tcp*[l]{Solve the CC master problem}
+		Obtain \( x_{t, u}^*, \hat{x}_{t, u}^*, \forall t, u \myin \Psi^{G+}; y_{t, \ell}^*, \hat{y}_{t, \ell}^*, \forall t, \ell \myin \Psi^{L+} \) by solving CC master problem in Eqs. (\ref{master_obj})-(\ref{master_last}) using \( d_{o, \tau, n, \nu'}, \forall o, \tau, n, \nu' \leq \nu \). $LB$ is updated to the objective value of the master problem. \;
 
     \;
 
-	\tcp*[l]{Solve the subproblem using Benders.}
-	Obtain $w_{n} \, \forall n$ by solving Benders master problem in Eqs. (\ref{sub_obj})-(\ref{sub_last}) using the current $x_{t, u}^* \, \forall t, u \in \Psi^{G+} \, , y_{t, \ell}^* \, \forall t, \ell \in \Psi^{L+}$. $UB$ is updated to the objective value of the subproblem + $P \sum\limits_{t} R^{-t} \big( \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u}^* + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell}^* \big)$ \;
+	\tcp*[l]{Solve the CC subproblem}
+	Obtain \( w_{n} \, \forall n \) by solving CC subproblem in Eqs. (\ref{sub_obj})-(\ref{sub_last}) using the current \( x_{t, u}^*, \forall t, u \myin \Psi^{G+}; y_{t, \ell}^*, \forall t, \ell \myin \Psi^{L+} \). $UB$ is updated to the objective value of the subproblem + $P \sum\limits_{t} R^{-t} \big( \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u}^* + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell}^* \big)$ \;
 
     \;
 
     $\nu \leftarrow \nu + 1$ \;
-    $d_{\tau, n, \nu} \leftarrow \tilde{D}_{\tau, n} + w_{n} \hat{D}_{\tau, n} \quad \forall \tau, n$ \;
+    $d_{o, \tau, n, \nu} \leftarrow \tilde{D}_{o, \tau, n} + w_{n} \hat{D}_{o, \tau, n} \quad \forall o, \tau, n$ \;
 }
 \caption{Algorithm for solving the problem (\ref{saro_obj})-(\ref{master_constraint_last})}
 \label{alg_algorithm}
 \end{algorithm}
 
-\subsection{Master problem}
+\subsection{CC master problem}
 
-At iteration $\nu$, we have $\Omega^{M} = \{ g_{o, \tau, u, \nu'} \, \forall o, \tau, u, \nu' \leq \nu, s_{o, \tau, u, \nu'} \, \forall o, \tau, u \in \Psi^{G, H}, \nu' \leq \nu, f_{o, \tau, \ell, \nu'} \, \forall o, \tau, \ell, \nu' \leq \nu, \delta_{o, \tau, n, \nu'} \, \forall o, \tau, n, \nu' \leq \nu \}$. Given $d_{\tau, n, \nu'}^*, \, \forall \tau, n, \nu' \leq \nu$ as input data obtained from all the previous solutions of the subproblem, the master problem at iteration $\nu$ is
+At iteration $\nu$, we have \( \Omega^{M} \myeq \{ g_{o, \tau, u, \nu'}, \forall u; s_{o, \tau, u, \nu'}, \forall u \in \Psi^{G, H}; f_{o, \tau, \ell, \nu'}, \forall \ell; \delta_{o, \tau, n, \nu'}, \forall n \}, \forall o, \tau, \nu' \myleq \nu \). Given \( d_{\tau, n, \nu'}^*, \forall \tau, n, \nu' \myleq \nu \) as input data obtained from all the previous solutions of the subproblem, the master problem at iteration $\nu$ is
 
 \begin{align}
 &\label{master_obj} \underset{\Phi^{L1}, \Omega^{M}, \theta}{\text{min}} \, P \sum\limits_{t} R^{-t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell} \right] + \theta \\
 &\text{subject to} \nonumber \\
 &\text{Eqs. } (\ref{master_constraint_first}) - (\ref{master_constraint_last}) \\
-&\theta \geq \sum\limits_o W_o \sum\limits_{\tau} R^{-t(\tau)} \sum\limits_{u} C_{o, \tau, u}^g g_{o, \tau, u, \nu'} \quad \forall \nu' \leq \nu \\
-&\sum\limits_{u \in \Psi^G_{n}} g_{o, \tau, u, \nu'} - \sum\limits_{\ell | s(\ell) = n} f_{o, \tau, \ell, \nu'} + \nonumber \\
+&\theta \geq \sum\limits_o W_o \sum\limits_{\tau} R^{-t(\tau)} \sum\limits_{u} C_{u}^g g_{o, \tau, u, \nu'} \quad \forall \nu' \leq \nu \\
+&\sum\limits_{u | n(u) = n} g_{o, \tau, u, \nu'} - \sum\limits_{\ell | s(\ell) = n} f_{o, \tau, \ell, \nu'} + \nonumber \\
 &\sum\limits_{\ell | r(\ell) = n} f_{o, \tau, \ell, \nu'} = d_{\tau, n, \nu'}^* \quad \forall o, \tau, n, \nu' \leq \nu \\
-&0 \leq g_{o, \tau, u, \nu'} \leq A_{o, t, u} G_{o, \tau, u}^{max} \quad \forall o, \tau, u \in \Psi_n^G, \nu' \leq \nu \\
-&0 \leq g_{o, \tau, u, \nu'} \leq A_{o, t, u} x_{t(\tau), u} \quad \forall o, \tau, u \in \Psi_n^{G+}, \nu' \leq \nu \\
+&0 \leq g_{o, \tau, u, \nu'} \leq A_{o, \tau, u} G_{o, \tau, u}^{max} \quad \forall o, \tau, u \in \Psi_n^G, \nu' \leq \nu \\
+&0 \leq g_{o, \tau, u, \nu'} \leq A_{o, \tau, u} x_{t(\tau), u} \quad \forall o, \tau, u \in \Psi_n^{G+}, \nu' \leq \nu \\
 &G^{ramp,min}_{o, \tau, u} \leq g_{o, \tau + 1, u, \nu'} - g_{o, \tau, u, \nu'} \quad \forall o, \tau \in \Tau^{ramp}, u, \nu' \leq \nu \\
 &g_{o, \tau + 1, u, \nu'} - g_{o, \tau, u, \nu'} \leq G^{ramp,max}_{o, \tau, u} \quad \forall o, \tau \in \Tau^{ramp}, u, \nu' \leq \nu \\
-&\sum\limits_{\tau \in t} \sum\limits_{u} g_{o, \tau, u, \nu'} G^{emissions}_{o, \tau, u} \leq E_{t} \quad \forall o, t, \nu' \leq \nu \\
+&\sum\limits_{o} \sum\limits_{\tau \in t} \sum\limits_{u} W_o G^{emission}_{o, \tau, u} g_{o, \tau, u, \nu'}  \leq E_{t} \quad \forall t, \nu' \leq \nu \\
 &s_{o, \tau, u, \nu'} \geq 0 \quad \forall o, \tau, u \in \Psi^{G, H}, \nu' \leq \nu \\
 &s_{o, \tau, u, \nu'} = S^0_{o, \tau, u} \quad \forall o, \tau \in \Tau^0, u \in \Psi^{G, H}, \nu' \leq \nu \\
 &s_{o, \tau + 1, u, \nu'} = s_{o, \tau, u, \nu'} - g_{o, \tau, u, \nu'} + \nonumber \\
@@ -304,27 +313,42 @@ At iteration $\nu$, we have $\Omega^{M} = \{ g_{o, \tau, u, \nu'} \, \forall o, 
 &\label{master_last} \delta_{o, \tau, 0, \nu'} = 0 \quad \forall o, \tau, \nu' \leq \nu
 \end{align}
 
-\subsection{Subproblem}
+\subsection{CC subproblem}
 
-For the subproblem, we set $\Omega^{S} = \{ \lambda_{o, \tau, n} \forall o, \tau, n, \bar{\beta}_{o, \tau, u}, \underline{\beta}_{o, \tau, u}, \bar{\beta}_{o, \tau, u}^{ramp}, \underline{\beta}_{o, \tau, u}^{ramp} \forall o, \tau, u,$ $\beta_{o, t}^{emission} \forall o, t,$ $\phi_{o, \tau, u}^{0} \forall o, \tau \in \Tau^0, u \in \Psi^{G, H}, \phi_{o, \tau, u} \forall o, \tau \in \Tau^{ramp}, u \in \Psi^{G, H}, \bar{\phi}_{o, \tau, u}^{-1}, \underline{\phi}_{o, \tau, u}^{-1} \forall o, \tau \in \Tau^{-1}, u \in \Psi^{G, H}, \underline{\phi}_{o, \tau, u} \forall o, \tau, u \in \Psi^{G, H}$ $\mu_{o, \tau, \ell}, \bar{\mu}_{o, \tau, \ell}, \underline{\mu}_{o, \tau, \ell} \forall o, \tau, \ell, \bar{\mu}^{va}_{o, \tau, n}, \underline{\mu}^{va}_{o, \tau, n} \forall o, \tau, n, \mu^{ref}_{o, \tau}  \forall o, \tau \}$. With $x_{t, u}^* \, \forall t, u \in \Psi^{G+}$ and $y_{t, \ell}^* \, \forall t, \ell \in \Psi^{L+}$ as input data obtained from the previous solution of the master problem, the subproblem is
+For the subproblem, we set
+\begin{align*}
+\Omega^{S} = &\{ \bar{\beta}_{o, \tau, u}, \underline{\beta}_{o, \tau, u}, \bar{\beta}_{o, \tau, u}^{ramp}, \underline{\beta}_{o, \tau, u}^{ramp} \}, \forall o, \tau, u \; \cup \\
+&\beta_{t}^{emission}, \forall t \; \cup \\
+&\{ \phi_{o, \tau, u}^{0}, \forall \tau \myin \Tau^0; \phi_{o, \tau, u}, \forall \tau \myin \Tau^{ramp}; \\
+&\, \, \, \bar{\phi}_{o, \tau, u}^{-1}, \underline{\phi}_{o, \tau, u}^{-1} \forall \tau \myin \Tau^{-1}; \underline{\phi}_{o, \tau, u} \forall \tau \}, \forall o, u \myin \Psi^{G, H} \; \cup \\
+&\{ \mu_{o, \tau, \ell}, \bar{\mu}_{o, \tau, \ell}, \underline{\mu}_{o, \tau, \ell} \} \forall o, \tau, \ell \; \cup \\
+&\{ \lambda_{o, \tau, n}, \bar{\mu}^{va}_{o, \tau, n}, \underline{\mu}^{va}_{o, \tau, n} \}, \forall o, \tau, n \; \cup \\
+&\mu^{ref}_{o, \tau}, \forall o, \tau.
+\end{align*}
+%\(  \myeq \{ \bar{\beta}_{o, \tau, u}, \underline{\beta}_{o, \tau, u}, \bar{\beta}_{o, \tau, u}^{ramp}, \underline{\beta}_{o, \tau, u}^{ramp} \}, \forall o, \tau, u \mycup \beta_{t}^{emission}, \forall t \mycup \)
+%\( \{ \phi_{o, \tau, u}^{0}, \forall \tau \myin \Tau^0; \phi_{o, \tau, u}, \forall \tau \myin \Tau^{ramp}; \)
+%\( \bar{\phi}_{o, \tau, u}^{-1}, \underline{\phi}_{o, \tau, u}^{-1} \forall \tau \myin \Tau^{-1}; \underline{\phi}_{o, \tau, u} \forall \tau \}, \forall o, u \myin \Psi^{G, H} \mycup \)
+%\( \{ \mu_{o, \tau, \ell}, \bar{\mu}_{o, \tau, \ell}, \underline{\mu}_{o, \tau, \ell} \} \forall o, \tau, \ell \mycup \)
+%\( \{ \lambda_{o, \tau, n}, \bar{\mu}^{va}_{o, \tau, n}, \underline{\mu}^{va}_{o, \tau, n} \}, \forall o, \tau, n \mycup \mu^{ref}_{o, \tau}, \forall o, \tau \)
+With $x_{t, u}^*, \forall t, u \myin \Psi^{G+}$ and $y_{t, \ell}^*, \forall t, \ell \myin \Psi^{L+}$ as input data obtained from the previous solution of the master problem, the subproblem is
 \begin{align}
-\label{sub_obj} \underset{\Phi^{L2}, \Omega^{S}}{\text{maximize}} &\sum\limits_o \Bigg( \sum\limits_{\tau} \Big[ \sum\limits_n \lambda_{o, \tau, n} d_{\tau, n} - \nonumber \\
-&\sum\limits_{u \in \Psi^G} \bar{\beta}_{o, \tau, u} A_{o, t, u} G_{o, \tau, u}^{max} - \nonumber \\
-&\sum\limits_{u \in \Psi^{G+}} \bar{\beta}_{o, \tau, u} A_{o, t, u} x_{t(\tau), u}^* - \nonumber \\
+\label{sub_obj} \underset{\Phi^{L2}, \Omega^{S}}{\text{maximize}} &\sum\limits_o \Bigg( \sum\limits_{\tau} \Big[ \sum\limits_n \lambda_{o, \tau, n} d_{o, \tau, n} - \nonumber \\
+&\sum\limits_{u \in \Psi^G} \bar{\beta}_{o, \tau, u} A_{o, \tau, u} G_{o, \tau, u}^{max} - \nonumber \\
+&\sum\limits_{u \in \Psi^{G+}} \bar{\beta}_{o, \tau, u} A_{o, \tau, u} x_{t(\tau), u}^* - \nonumber \\
 &\sum\limits_{\ell \in \Psi^L} \left( \bar{\mu}_{o, \tau, \ell} F_{o, \tau, \ell}^{max} - \underline{\mu}_{o, \tau, \ell} F_{o, \tau, \ell}^{min} \right) - \nonumber \\
 &\sum\limits_{\ell \in \Psi^{L+}} \left( \bar{\mu}_{o, \tau, \ell} F_{o, \tau, \ell}^{max} - \underline{\mu}_{o, \tau, \ell} F_{o, \tau, \ell}^{min} \right) y_{t(\tau), \ell}^* - \nonumber \\
 &\sum\limits_{n} \pi ( \bar{\mu}^{va}_{o, \tau, n} + \underline{\mu}^{va}_{o, \tau, n} ) \Big] + \nonumber \\
 &\sum\limits_{u \in \Psi^{G, H}} \Big[ \sum\limits_{\tau \in \Tau^{0}}  \phi_{o, \tau, u}^{0} S^{0}_{o, \tau, u} + \nonumber \\
 &\sum\limits_{\tau \in \Tau^{ramp}} \phi_{o, \tau, u} I_{o, \tau, u} + \nonumber \\
 &\sum\limits_{\tau \in \Tau^{-1}} \left( \underline{\phi}^{-1}_{o, \tau, u} S^{min}_{o, \tau, u} - \bar{\phi}^{-1}_{o, \tau, u} S^{max}_{o, \tau, u} \right) \Big] + \nonumber \\
-&\sum\limits_{\tau \in \Tau^{ramp}} \sum\limits_{u} \left( \underline{\beta}_{o, \tau, u}^{ramp} G^{ramp,min}_{o, \tau, u} - \bar{\beta}_{o, \tau, u}^{ramp} G^{ramp,max}_{o, \tau, u} \right) \nonumber \\
-&\sum\limits_{t} \beta_{o, t}^{emission} E_{t} \Bigg)
+&\sum\limits_{\tau \in \Tau^{ramp}} \sum\limits_{u} \left( \underline{\beta}_{o, \tau, u}^{ramp} G^{ramp,min}_{o, \tau, u} - \bar{\beta}_{o, \tau, u}^{ramp} G^{ramp,max}_{o, \tau, u} \right) \Bigg) - \nonumber \\
+&\sum\limits_{t} \beta_{t}^{emission} E_{t}
 \end{align}
 \begin{align}
 &\text{subject to} \nonumber \\
 &\lambda_{o, \tau, n(u)} - \bar{\beta}_{o, \tau, u} + \underline{\beta}_{o, \tau, u} + \mathbbm{1}_{\tau \in \Tau^{ramp} \land u \in \Psi^{G, H}} \phi_{o, t, u} - \nonumber \\
-&\mathbbm{1}_{\tau \notin \Tau^0} \bar{\beta}_{o, \tau - 1, u}^{ramp} + \mathbbm{1}_{\tau \notin \Tau^{-1}} \bar{\beta}_{o, \tau, u}^{ramp} + \mathbbm{1}_{\tau \notin \Tau^0} \underline{\beta}_{o, \tau - 1, u}^{ramp} - \mathbbm{1}_{\tau \notin \Tau^{-1}} \underline{\beta}_{o, \tau, u}^{ramp} - \nonumber \\
-&\label{sub_constr1}G_{o, \tau, u}^{emissions} \beta_{o, t(\tau)}^{emissions} = R^{-t(\tau)} C^g_{o, \tau, u}  W_o \quad \forall o, \tau, u \\
+&\mathbbm{1}_{\tau \notin \Tau^0} \bar{\beta}_{o, \tau - 1, u}^{ramp} + \mathbbm{1}_{\tau \notin \Tau^{-1}} \bar{\beta}_{o, \tau, u}^{ramp} + \mathbbm{1}_{\tau \notin \Tau^0} \underline{\beta}_{o, \tau - 1, u}^{ramp} - \nonumber \\
+&\label{sub_constr1}\mathbbm{1}_{\tau \notin \Tau^{-1}} \underline{\beta}_{o, \tau, u}^{ramp} - W_o G_{u}^{emission} \beta_{t(\tau)}^{emission} {=} R^{-t(\tau)} C^g_{u}  W_o \; \forall o, \tau, u \\
 &\mathbbm{1}_{\tau \in \Tau^0} \phi_{o, \tau, u}^{0} + \underline{\beta}_{o, \tau, u}^s - \mathbbm{1}_{\tau \notin \Tau^{-1}} \phi_{o, \tau, u} + \mathbbm{1}_{\tau \notin \Tau^0} \phi_{o, \tau - 1, u} + \nonumber \\
 &\mathbbm{1}_{\tau \in \Tau^{-1}} (\underline{\phi}_{o, \tau, u} - \bar{\phi}_{o, \tau, u}) = 0 \quad \forall o, \tau, u \in \Psi^{G, H} \\
 &-\lambda_{o, \tau, s(\ell)} + \lambda_{o, \tau, r(\ell)} + \mathbbm{1}_{\ell \in \Psi^{L,AC}} \mu_{o, \tau, \ell} - \nonumber \\
@@ -333,39 +357,44 @@ For the subproblem, we set $\Omega^{S} = \{ \lambda_{o, \tau, n} \forall o, \tau
 &\bar{\mu}^{va}_{o, \tau, n} + \underline{\mu}^{va}_{o, \tau, n} + \mathbbm{1}_{n = 0} \mu^{ref}_{o, \tau} = 0 \quad \forall o, \tau, n \\
 &\label{sub_last}\text{Eqs. } (\ref{uncertainty_set}),
 \end{align}
-where the notation $n(u)$ indicates the node $n$ at which unit $u$ is located and $\mathbbm{1}_{cond}$ equals 1 if $cond$ is true and otherwise 0.
+where $\mathbbm{1}_{cond}$ equals 1 if $cond$ is true and otherwise 0.
 
-The subproblem can be solved directly as a MIQP using solvers such as Gurobi. Alternatively, the subproblem can be re-formulated as an MILP by linearizing the product of a continuous and a binary variable in $\lambda_{o, \tau, n} d_{\tau, n} = \lambda_{o, \tau, n} D^{-t(\tau)} (\tilde{D}_{\tau, n} + w_n \hat{D}_{\tau, n})$ in the objective function (\ref{sub_obj}) exactly with $\lambda_{o, \tau, n} d_{\tau, n} = D^{-t(\tau)} (z_{o, \tau, n} \hat{D}_{\tau, n} + \lambda_{o, \tau, n} \tilde{D}_{\tau, n})$ and by adding the following constraints to the subproblem
+The subproblem can be solved directly as a MIQP using solvers such as Gurobi. Alternatively, the subproblem can be re-formulated as an MILP by linearizing the product of a continuous and a binary variable in $\lambda_{o, \tau, n} d_{o, \tau, n} = \lambda_{o, \tau, n} D^{-t(\tau)} (\tilde{D}_{o, \tau, n} + w_n \hat{D}_{o, \tau, n})$ in the objective function (\ref{sub_obj}) exactly with $\lambda_{o, \tau, n} d_{o, \tau, n} = D^{-t(\tau)} (z_{o, \tau, n} \hat{D}_{o, \tau, n} + \lambda_{o, \tau, n} \tilde{D}_{o, \tau, n})$ and by adding the following constraints to the subproblem
 \begin{align}
 &\label{z_constr} z_{o, \tau, n} = \lambda_{o, \tau, n} - \tilde{\lambda}_{o, \tau, n} \quad \forall o, \tau, n \\
 &\Lambda^{min} w_n \leq z_{o, \tau, n} \leq \Lambda^{max} w_n \quad \forall o, \tau, n \\
-&\Lambda^{min} (1 - w_n) \leq \tilde{\lambda}_{o, \tau, n} \leq \Lambda^{max} (1 - w_n) \quad \forall o, \tau, n
+&\Lambda^{min} (1 - w_n) \leq \tilde{\lambda}_{o, \tau, n} \leq \Lambda^{max} (1 - w_n) \quad \forall o, \tau, n,
 \end{align}
+where parameters $\Lambda^{min}$ and $\Lambda^{max}$ can be set to exchange-specific values such as -500 €/MWh and 3000 €/MWh, respectively.
 
 \section{Case study: modified Nordic and Baltic network}
 \label{section_case_study}
 
-We study what investments are required to decrease the initial emissions of the Nordic and Baltic electricity system under uncertain generation and transmission parameters and worst-case realization of demand. More specifically, we use the Nordic and Baltic network and its generation, load, and transmission line data from \cite{Virasjoki} as a base.
+We study what investments are required to decrease the initial \COtwo emissions of the Nordic and Baltic electricity system to a target level under uncertain generation and transmission parameters and worst-case realization of demand. More specifically, we use the Nordic and Baltic network and its generation, load, and transmission line data from \cite{Virasjoki} as a base.
 
-We augment the base system by having 10 time steps in the master problem ($t$) for making investments. For each master problem time step, we consider 24 time steps in the subproblem ($\tau$). Consequently, the subproblem has 240 time steps in total. We define variable load and wind as well as solar power data so that, for each master problem time step, we sample one day and use its hourly data for 24 consecutive subproblem time steps. We assume that load values increase by a factor of $D = 1.03$ at each master problem time step. Hydro power data such as initial storage levels ($S_{o, \tau, u}^0$) and inflows ($I_{o, \tau, u}$) have weekly granularity so we take the weekly value corresponding to each sampled day. In addition, we modify the system by introducing 3 equally weighted ($W_o = 1/3$) operating conditions by sampling uniform noise from $\textrm{U}(-100 \textrm{ MW}, 100 \textrm{ MW})$ to all generation ($G^{max}_{o, \tau, u}$) and transmission capacities ($F^{max}_{o, \tau, \ell}$ and $F^{min}_{o, \tau, \ell}$).
+We augment this base system by having 10 time steps in the CC master problem ($t$) for making investments. For each master problem time step, we consider 24 time steps in the CC subproblem ($\tau$). Consequently, the subproblem has 240 time steps in total. To consider increasing electricity demand, we assume that load values increase by a factor of $D = 1.01$ at each master problem time step \cite{EEA_consumption}.
 
-Gas, CCGT, oil, biomass, wind and solar power can be built at each (non-dummy) node. Each candidate unit has a maximum capacity ($G^{inv,max}_u$) of 10000 MW except for biomass units which we limit to 1000 MW due to limited fuel supply. In addition, neighboring (non-dummy) node pairs can be connected with two candidate DC transmission lines with both having 1000 MW of capacity to both directions. The investment cost parameters are shown in Table \ref{table_investment_parameters}. The upper bound for emissions for each master problem time step decreases linearly from $E_{0} = 100000 \textrm{ tonne}$ to $E_{9} = 20000 \textrm{ tonne}$.
+In addition, we define 3 operation conditions $o$ for each subproblem time step. We apply the hierarchical clustering method of \cite{Nahmmacher} on hourly load and wind power data of 2014 to obtain 3 representative days. The hourly load, wind, and solar power data on these 3 representative days are used as the operating conditions for each set of 24 subproblem time steps. This allows us to capture the short-term variability of load and renewables. Hydro power data such as initial storage levels ($S_{o, \tau, u}^0$) and inflows ($I_{o, \tau, u}$) have weekly granularity so, for each operating condition, we take the weekly value corresponding to each representative day. However, for generation ($G^{max}_{o, \tau, u}$) and transmission capacities ($F^{max}_{o, \tau, \ell}$ and $F^{min}_{o, \tau, \ell}$), the operation conditions are defined by sampling uniform noise from $\textrm{U}(-50 \textrm{ MW}, 50 \textrm{ MW})$. The weights of the operation conditions ($W_o$) are equal to the weights of the representative days as defined in \cite{Nahmmacher}.
 
-The uncertainty budget in the subproblem ($\Lambda^w$) is 2 meaning that the model can change load in maximum of 2 nodes. Each change the model makes increases load in a node for all operating conditions and subproblem time steps by $\hat{D}_{\tau, n} = 100 \textrm{ MWh}$. The linearization variables $\Lambda^{min}$ and $\Lambda^{max}$ are -1000 €/MWh and 1000 €/MWh, respectively.
+Gas, CCGT, oil, biomass, wind and solar power can be built at each (non-dummy) node. Each candidate unit has a maximum capacity ($G^{inv,max}_u$) of 10000 MW except for biomass units which we limit to 1000 MW due to limited fuel supply. In addition, neighboring (non-dummy) node pairs can be connected with a candidate DC transmission line with 1000 MW of capacity to both directions. The investment cost parameters are shown in Table \ref{table_investment_parameters}.
+
+The initial \COtwo emission bound $E_{0} = 90000 \textrm{ tonne}$ is obtained from the \COtwo emissions corresponding to the first master problem time step when solving the problem with no investments. This initial emission bound is realistic given that the average daily \COtwo emissions of both power and heat production were approximately $E_{0} = 140000 \textrm{ tonne}$ in this area in 2014 \cite{EEA_COtwo}. We assume that the \COtwo emissions are required to decrease by approximately 10\% at every master problem time step to a final emission bound of $E_{9} = 35000 \textrm{ tonne}$.
+
+The uncertainty budget in the subproblem ($\Lambda^w$) is 2 meaning that the model can change load in maximum of 2 nodes. Each change the model makes increases load in a node for all operating conditions and subproblem time steps by $\hat{D}_{\tau, n} = 100 \textrm{ MWh}$.
 
 \begin{table}[htpb]
 \centering
 \begin{tabular}{l| c} \hline
 Parameter 					& Value  \\ \hline
 $P$ 						& $\frac{1}{365}$ \\
-$R$							& 1.1		\\
+$R$							& 1.03		\\
 $C^x_{t, u}$ Gas (€/MW)		& 0.8 \cdot 10^6    \\
 $C^x_{t, u}$ CCGT (€/MW)	& 1.0 \cdot 10^6    \\
 $C^x_{t, u}$ Oil (€/MW)		& 0.8 \cdot 10^6    \\
 $C^x_{t, u}$ Biomass (€/MW)	& 3.9 \cdot 10^6    \\
 $C^x_{t, u}$ Wind (€/MW)	& 1.6 \cdot 10^6    \\
 $C^x_{t, u}$ Solar (€/MW)	& 1.8 \cdot 10^6    \\
-$C^x_{t, \ell}$ (€)			& 2.0 \cdot 10^8	\\
+$C^y_{t, \ell}$ (€)			& 1.0 \cdot 10^9	\\
 \end{tabular}
 \caption{Investment cost parameters in the case study}
 \label{table_investment_parameters}
@@ -376,41 +405,41 @@ We solve this case study using the Algorithm \ref{alg_algorithm}. The results ar
 \begin{table}[htpb]
 \centering
 \begin{tabular}{c c| c c c} \hline
-Master problem 			& Subproblem & Objective value (€) 	& Solution time (s) 	& Iterations \\ \hline
-Benders					& MIQP 				& 98047281.846 		& 2704.97				& 3				 \\
-MILP					& MIQP 				& 98047281.846 		& 3975.56				& 3				 \\
+Master problem 			& Subproblem 		& Objective value (€) 	& Solution time (s) & Iterations \\ \hline
+Benders					& MIQP 				& 95915334.5162 		& 856.0				& 3				 \\
+MILP					& MIQP 				& 95915334.5162 		& 1656.18			& 3				 \\
 \end{tabular}
 \caption{}
 \label{table_results}
 \end{table}
 
-Figure \ref{fig_emissions_trajectory} shows how emissions decrease from their initial level to the final desired level during the simulation horizon and Figure \ref{fig_emissions_prices_trajectory} shows the emisssion prices. Figures \ref{fig_generation_investment} and \ref{fig_transmission_investment} show the generation and transmission investments, respectively, for achieving the final emission level.
+Figure \ref{fig_emissions_trajectory} shows the evolution of \COtwo emissions to the final desired level during the planning horizon and Figure \ref{fig_emissions_prices_trajectory} shows the corresponding \COtwo emission prices. Figures \ref{fig_generation_investment} and \ref{fig_transmission_investment} show the generation and transmission investments, respectively, for achieving the final emission level. Already at $t = 0$, the model builds transmission lines from Finland to Norway and Sweden and a total of 1600 MW of CCGT units in Latvia and Lithuania as well as 1100 MW of wind power in Finland. As a consequence, \COtwo emissions from $t = 0$ to $t = 4$ are below the bounds until demand increases to a high enough level at $t = 5$. To reduce \COtwo emissions to the final level, the model invests in approximately 700 MW of biomass units in Estonia and Finland. These transmission and generation investments allow replacing coal- and oil shale-fired generation with less-polluting wind power as well as gas and biomass-fired generation.
 
 \begin{figure}[htpb]
   \centering
   \includegraphics[width=\linewidth]{emissions_trajectory_milp_dc_miqp_dc.png}
-  \caption{Decrease in emissions during the simulation horizon}
+  \caption{\COtwo emissions during the planning horizon}
   \label{fig_emissions_trajectory}
 \end{figure}
 
 \begin{figure}[htpb]
   \centering
   \includegraphics[width=\linewidth]{emissions_prices_trajectory_milp_dc_miqp_dc.png}
-  \caption{Emissions prices during the simulation horizon}
+  \caption{\COtwo emission prices during the planning horizon}
   \label{fig_emissions_prices_trajectory}
 \end{figure}
 
 \begin{figure}[htpb]
 	\centering
 	\includegraphics[width=\linewidth]{generation_investment_milp_dc_miqp_dc.png}
-	\caption{Generation investments during the simulation horizon}
+	\caption{Generation investments during the planning horizon. The country codes indicate the node where each generation unit is built}
 	\label{fig_generation_investment}
 \end{figure}
 
 \begin{figure}[htpb]
 	\centering
 	\includegraphics[width=\linewidth]{transmission_investment_milp_dc_miqp_dc.png}
-	\caption{Transmission investments during the simulation horizon}
+	\caption{Transmission investments during the planning horizon. The country codes indicate the start and end node of each line}
 	\label{fig_transmission_investment}
 \end{figure}
 

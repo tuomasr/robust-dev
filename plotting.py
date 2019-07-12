@@ -42,6 +42,8 @@ def stacked_bar(data, series_labels, category_labels, y_label,
     if y_label:
         plt.ylabel(y_label)
 
+    plt.xlabel("master problem time step")
+
     if grid:
         plt.grid()
 
@@ -78,15 +80,16 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
     palette = {k: v for k, v in zip(candidate_unit_types, ["r", "c", "m", "g", "b", "y"])}
     candidate_unit_name_map = {k: v for k, v in zip(candidate_unit_types, candidate_unit_type_names)}
 
-    for key, val in xhat.items():
+    for idx, (key, val) in enumerate(xhat.items()):
         # Only show investments >= 10 MW.
         trunc_val = int(np.round(val / 10.0) * 10.0)
 
         if trunc_val > 0.0:
             year, unit = key
+
             node = unit_to_node[unit]
             unit_type = unit_to_generation_type[unit]
-            unit_label = real_node_names[node] + "\n" + str(trunc_val) + " MW"
+            unit_label = real_node_names[node] # + "\n" + str(trunc_val) + " MW"
 
             series_labels.append(unit_label)
 
@@ -94,7 +97,7 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
             capacity[year:] += val
 
             data.append(capacity)
-            investment_years.append(year)   # For reordering the data points by investment year.
+            investment_years.append(year*1000 + idx)   # For reordering the data points by investment year.
             colors.append(palette[unit_type])
             legend_labels.append(candidate_unit_name_map[unit_type])
 
@@ -103,6 +106,9 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
                      sorted(zip(investment_years, series_labels), key=lambda pair: pair[0])]
     data = [x for _, x in sorted(zip(investment_years, data),
             key=lambda pair: pair[0])]
+    colors = [x for _, x in sorted(zip(investment_years, colors), key=lambda pair: pair[0])]
+    legend_labels = [x for _, x in sorted(zip(investment_years, legend_labels),
+                     key=lambda pair: pair[0])]
 
     if len(data) > 0:
         width, height = max(1.5*len(years), 12), max(1.6*len(data), 12)
@@ -128,7 +134,7 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
     category_labels = years
     investment_years = []
 
-    for key, val in yhat.items():
+    for idx, (key, val) in enumerate(yhat.items()):
         if val > 0.0:
             year, line = key
             start = get_start_node(line)
@@ -141,13 +147,14 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
             capacity[year:] += candidate_line_capacity
 
             data.append(capacity)
-            investment_years.append(year)   # For reordering the data points by investment year.
+            investment_years.append(year*1000 + idx)   # For reordering the data points by investment year.
 
     # Reorder data so that they appear in the order of the investment year.
     series_labels = [x for _, x in
                      sorted(zip(investment_years, series_labels), key=lambda pair: pair[0])]
     data = [x for _, x in sorted(zip(investment_years, data),
             key=lambda pair: pair[0])]
+    colors = [x for _, x in sorted(zip(investment_years, colors), key=lambda pair: pair[0])]
 
     if len(data) > 0:
         width, height = max(1.1*len(years), 12), max(1.1*len(data), 10)
@@ -170,36 +177,23 @@ def create_emission_plots(emissions, emission_prices,
                           master_problem_algorithm, subproblem_algorithm):
     """Create plots for emission prices and for emission reductions."""
     plt.figure()
-
-    markers = ["ro--", "bs--", "kx--", "yd--", "c*--", "m^--"]
-
-    for i, o in enumerate(scenarios):
-        plt.plot(years, emissions[o, :], markers[i], label="Oper. cond. %d" % o)
-
+    plt.plot(years, emissions)
     plt.xlabel("master problem time step")
     plt.ylabel("emissions (tonne)")
     lgd = plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
     plt.savefig(
         "emissions_trajectory_%s_%s.png"
         % (master_problem_algorithm, subproblem_algorithm),
-        bbox_extra_artists=(lgd,),
-        bbox_inches="tight",
     )
 
     # Emission prices plot.
     plt.figure()
-    for i, o in enumerate(scenarios):
-        price_list = [emission_prices[o, y] for y in years]
-        plt.plot(years, price_list, markers[i], label="Oper. cond. %d" % o)
-
+    plt.plot(years, emission_prices)
     plt.xlabel("master problem time step")
     plt.ylabel("emissions price (EUR/tonne)")
-    lgd = plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
     plt.savefig(
         "emissions_prices_trajectory_%s_%s.png"
         % (master_problem_algorithm, subproblem_algorithm),
-        bbox_extra_artists=(lgd,),
-        bbox_inches="tight",
     )
 
 

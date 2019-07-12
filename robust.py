@@ -26,6 +26,7 @@ from common_data import (
     storage_change_ub,
     candidate_units,
     candidate_lines,
+    ac_lines,
 )
 from helpers import (
     compute_objective_gap,
@@ -86,6 +87,7 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
             get_investment_and_availability_decisions,
             get_investment_cost,
             get_emissions,
+            master_problem,
         )
     elif master_problem_algorithm == "milp_dc":
         from master_problem_dc import (
@@ -93,6 +95,7 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
             get_investment_and_availability_decisions,
             get_investment_cost,
             get_emissions,
+            master_problem,
         )
 
     # Import an implementation depending on the subproblem algorithm choice.
@@ -187,7 +190,10 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
         print("Primal variables:")
         print(separator)
         for v in master_problem.getVars():
-            print(v.varName, v.x)
+            if 'flow_%d' % iteration in v.varName:
+                key = v.varName.split(',')
+                if int(key[1]) == 17 and int(key[2]) in ac_lines:
+                    print(v.varName, v.x)
 
     print_uncertain_variables = True
 
