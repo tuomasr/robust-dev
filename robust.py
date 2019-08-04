@@ -9,9 +9,6 @@ import argparse
 import sys
 
 import numpy as np
-import matplotlib.pyplot as plt
-
-plt.switch_backend("agg")  # Enable plotting without a monitor.
 
 from common_data import (
     scenarios,
@@ -24,8 +21,6 @@ from common_data import (
     initial_storage,
     storage_change_lb,
     storage_change_ub,
-    candidate_units,
-    candidate_lines,
     ac_lines,
 )
 from helpers import (

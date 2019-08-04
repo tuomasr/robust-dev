@@ -5,7 +5,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from gurobipy import *
+from gurobipy import GRB, Model
 import numpy as np
 
 from common_data import (
@@ -17,14 +17,10 @@ from common_data import (
     load,
     units,
     lines,
-    existing_units,
     existing_lines,
-    candidate_units,
-    candidate_lines,
     ac_lines,
     ac_nodes,
     hydro_units,
-    G_max,
     F_max,
     F_min,
     B,
