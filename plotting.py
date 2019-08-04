@@ -1,23 +1,27 @@
+# Plotting functions for the results.
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import pickle
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-plt.switch_backend("agg")  # Enable plotting without a monitor.
 
 from common_data import (
-    scenarios,
     real_node_names,
     years,
     unit_to_node,
-    incidence,
-    F_max,
     candidate_line_capacity,
     unit_to_generation_type,
     candidate_unit_type_names,
     candidate_unit_types,
 )
 from helpers import get_start_node, get_end_node
+
+plt.switch_backend("agg")  # Enable plotting without a monitor.
 
 
 def stacked_bar(
@@ -226,7 +230,7 @@ def create_emission_plots(
     plt.plot(years, emissions)
     plt.xlabel("master problem time step")
     plt.ylabel("emissions (tonne)")
-    lgd = plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+    plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
     plt.savefig(
         "emissions_trajectory_%s_%s.png"
         % (master_problem_algorithm, subproblem_algorithm)

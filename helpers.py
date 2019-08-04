@@ -250,7 +250,8 @@ class Timer:
         return self._collection
 
 
-# Based on: https://stackoverflow.com/questions/14906764/how-to-redirect-stdout-to-both-file-and-console-with-scripting
+# Based on:
+# https://stackoverflow.com/questions/14906764/how-to-redirect-stdout-to-both-file-and-console-with-scripting
 # Makes print() to output to both terminal and a file.
 class MyLogger(object):
     def __init__(self, master_problem_algorithm, subproblem_algorithm):

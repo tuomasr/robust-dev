@@ -5,20 +5,18 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from gurobipy import *
+from gurobipy import GRB, Model
 import numpy as np
 
 from common_data import (
     years,
     hours,
-    num_hours_per_year,
     annualizer,
     scenarios,
     real_nodes,
     nodes,
     units,
     lines,
-    existing_units,
     existing_lines,
     candidate_units,
     candidate_lines,
@@ -27,7 +25,6 @@ from common_data import (
     hydro_units,
     unit_to_node,
     unit_to_generation_type,
-    G_max,
     maximum_candidate_unit_capacity_by_type,
     F_max,
     F_min,
@@ -100,7 +97,8 @@ def add_primal_variables(iteration):
         ub=GRB.INFINITY,
     )
 
-    # Flow variables for existing and candidate lines. Upper and lower bound are set as constraints.
+    # Flow variables for existing and candidate lines.
+    # Upper and lower bound are set as constraints.
     f = m.addVars(
         scenarios,
         hours,

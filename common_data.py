@@ -226,14 +226,15 @@ for u in existing_units:
 # 15: biomass-e
 # 16: waste-e
 # 17: peat-e
-# See also: https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/2_Volume2/V2_2_Ch2_Stationary_Combustion.pdf
+# See also:
+# https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/2_Volume2/V2_2_Ch2_Stationary_Combustion.pdf
 generation_type_to_emissions = {
     0: 0.34 / 0.41,
     1: 0.2 / 0.4,
     2: 0.2 / 0.54,
     3: 0.28 / 0.39,
-    4: 0.0
-    / 0.35,  # Biomass not in ETS, debated. First value is estimated to be 0.2 - 0.3.
+    # Biomass not in ETS, debated. First value is estimated to be 0.2 - 0.3.
+    4: 0.0 / 0.35,
     5: 0.39 / 0.37,
     6: 0.0 / 0.33,
     7: 0.0 / 0.85,
@@ -429,7 +430,7 @@ assert G_max.shape[-1] == C_g.shape[-1] == G_emissions.shape[-1] == num_units
 
 # Set initial hydro reservoir to the weeks which the sampled days belong to.
 # FI: http://wwwi2.ymparisto.fi/i2/95/fie7814.txt
-# SE: https://www.energiforetagen.se/globalassets/energiforetagen/statistik/el/vecko--och-manadsstatistik/vecka_01-52_2014_ver_a.pdf?v=5Lem8eD7Yda4I_l3j6tHMZx4Gus
+# SE: https://www.energiforetagen.se/globalassets/energiforetagen/statistik/el/vecko--och-manadsstatistik/vecka_01-52_2014_ver_a.pdf?v=5Lem8eD7Yda4I_l3j6tHMZx4Gus # noqa
 # NO: https://energifaktanorge.no/en/norsk-energiforsyning/kraftproduksjon/
 # LV, LT: Entso-e
 
@@ -437,7 +438,7 @@ weekly_inflow = np.genfromtxt("inflow.csv", delimiter=";", skip_header=1)
 weekly_reservoir = np.genfromtxt("reservoir.csv", delimiter=";", skip_header=1)
 
 hydro_unit_idx = 7
-hydro_units = [u for u, t in unit_to_generation_type.items() if t == hydro_unit_idx]
+hydro_units = [u for u, type_ in unit_to_generation_type.items() if type_ == hydro_unit_idx]
 
 initial_storage = {u: np.zeros((num_scenarios, num_years)) for u in hydro_units}
 inflows = {u: np.zeros((num_scenarios, num_hours)) for u in hydro_units}

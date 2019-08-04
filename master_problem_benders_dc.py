@@ -4,13 +4,12 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from gurobipy import *
+from gurobipy import GRB, Model
 import numpy as np
 
 from common_data import (
     years,
     hours,
-    num_hours_per_year,
     annualizer,
     scenarios,
     real_nodes,
@@ -25,7 +24,6 @@ from common_data import (
     ac_nodes,
     hydro_units,
     unit_to_node,
-    G_max,
     maximum_candidate_unit_capacity_by_type,
     unit_to_generation_type,
     F_max,
@@ -125,7 +123,8 @@ def add_primal_variables(sp, iteration):
         ub=GRB.INFINITY,
     )
 
-    # Flow variables for existing and candidate lines. Upper and lower bound are set as constraints.
+    # Flow variables for existing and candidate lines.
+    # Upper and lower bound are set as constraints below.
     f = sp.addVars(
         scenarios,
         hours,
@@ -262,9 +261,9 @@ def augment_master(
 ):
     # Augment the Benders master problem with a new cut from the slave problem.
     # Unpack the dual values. Be careful with the order.
-    sigma, beta_bar, mu_underline, mu_bar, beta_ramp_underline, beta_ramp_bar, beta_emissions, rho_bar, rho_underline, phi_initial_storage, phi_storage, phi_storage_change_lb, phi_storage_change_ub = (
-        dual_values
-    )
+    sigma, beta_bar, mu_underline, mu_bar, beta_ramp_underline = dual_values[:5]
+    beta_ramp_bar, beta_emissions, rho_bar, rho_underline, phi_initial_storage = dual_values[5:10]
+    phi_storage, phi_storage_change_lb, phi_storage_change_ub = dual_values[10:]
 
     year_first_hours = [t for t in hours if is_year_first_hour(t)]
     year_last_hours = [t for t in hours if is_year_last_hour(t)]
