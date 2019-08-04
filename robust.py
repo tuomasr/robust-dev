@@ -34,6 +34,7 @@ from helpers import (
     Timer,
     get_maximum_ramp,
     MyLogger,
+    get_emissions,
 )
 from plotting import create_investment_plots, create_emission_plots
 
@@ -78,7 +79,10 @@ def print_solution_quality(problem, problem_name):
 
 
 def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
-    # Has the algorithm converged?
+    """Solve the robust optimization problem.
+
+    Use a column-and-constraint (CC) algorithm at the top-level.
+    """
     converged = False
 
     if master_problem_algorithm == "benders_dc":
@@ -86,7 +90,6 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
             solve_master_problem,
             get_investment_and_availability_decisions,
             get_investment_cost,
-            get_emissions,
             master_problem,
         )
     elif master_problem_algorithm == "milp_dc":
@@ -94,7 +97,6 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
             solve_master_problem,
             get_investment_and_availability_decisions,
             get_investment_cost,
-            get_emissions,
             master_problem,
         )
 
@@ -121,6 +123,7 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
         # Update lower bound to the master problem objective value.
         LB = master_problem_objval
 
+        # Initial master problem solution (full investment) is used for the first iteration.
         initial = iteration == 0
 
         # Obtain investment and availability decisions from the master problem solution.
@@ -164,6 +167,7 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
     else:
         print("Did not converge. Gap: %s, UB-LB: %s" % (GAP, UB - LB))
 
+    # Report costs.
     print(separator)
     print("Objective value:", master_problem_objval)
     print(
@@ -203,6 +207,7 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
         print(separator)
         print(get_uncertainty_decisions())
 
+    # Print investments.
     print("xhat")
     for key, val in xhat.items():
         if val > 0.0:
@@ -277,6 +282,7 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
     print("final_storage_ub", storage_ub_active)
     print("----")
 
+    # Print storage values.
     print_storage = False
 
     if print_storage:
@@ -296,7 +302,7 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
 
 
 def main():
-    # Run robust optimization.
+    """Run robust optimization."""
     parser = argparse.ArgumentParser(description="Run robust optimization.")
     parser.add_argument(
         "master_problem_algorithm", type=str, choices=("benders_dc", "milp_dc")
