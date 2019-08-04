@@ -438,7 +438,9 @@ weekly_inflow = np.genfromtxt("inflow.csv", delimiter=";", skip_header=1)
 weekly_reservoir = np.genfromtxt("reservoir.csv", delimiter=";", skip_header=1)
 
 hydro_unit_idx = 7
-hydro_units = [u for u, type_ in unit_to_generation_type.items() if type_ == hydro_unit_idx]
+hydro_units = [
+    u for u, type_ in unit_to_generation_type.items() if type_ == hydro_unit_idx
+]
 
 initial_storage = {u: np.zeros((num_scenarios, num_years)) for u in hydro_units}
 inflows = {u: np.zeros((num_scenarios, num_hours)) for u in hydro_units}
