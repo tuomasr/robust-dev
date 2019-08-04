@@ -61,6 +61,7 @@ def get_effective_capacity(o, t, u, x):
 
     return np.maximum(available, 0.0)
 
+
 def get_maximum_ramp(o, t, u, x):
     # Get maximum ramp at any given time.
     # Wind and PV can ramp up freely within the installed capacity limits.
@@ -71,6 +72,7 @@ def get_maximum_ramp(o, t, u, x):
         ramp = get_effective_capacity(o, t, u, x) * ramp_rates[o, t, u]
 
     return np.maximum(ramp, 0.0)
+
 
 def unit_built(x, h, u):
     # Check if a generation unit is built at hour h.
@@ -174,19 +176,22 @@ class Timer:
     def solution_times(self):
         return self._collection
 
+
 # Based on: https://stackoverflow.com/questions/14906764/how-to-redirect-stdout-to-both-file-and-console-with-scripting
 # Makes print() to output to both terminal and a file.
 class MyLogger(object):
     def __init__(self, master_problem_algorithm, subproblem_algorithm):
         self.terminal = sys.stdout
-        self.log = open("%s_%s.log" % (master_problem_algorithm, subproblem_algorithm), "w")
+        self.log = open(
+            "%s_%s.log" % (master_problem_algorithm, subproblem_algorithm), "w"
+        )
 
     def write(self, message):
         self.terminal.write(message)
         self.log.write(message)
 
     def flush(self):
-        #this flush method is needed for python 3 compatibility.
-        #this handles the flush command by doing nothing.
-        #you might want to specify some extra behavior here.
+        # this flush method is needed for python 3 compatibility.
+        # this handles the flush command by doing nothing.
+        # you might want to specify some extra behavior here.
         pass

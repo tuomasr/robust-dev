@@ -143,9 +143,7 @@ beta_ramp_underline = m.addVars(
 )
 
 # Maximum emissions dual variables.
-beta_emissions = m.addVars(
-    years, name="dual_maximum_emissions", lb=0.0, ub=ub1
-)
+beta_emissions = m.addVars(years, name="dual_maximum_emissions", lb=0.0, ub=ub1)
 
 # Transmission flow dual variables.
 phi = m.addVars(scenarios, hours, ac_lines, name="dual_flow", lb=lb2, ub=ub2)
@@ -179,7 +177,11 @@ def get_objective(x, y):
             + lambda_[o, t, n] * nominal_demand[o, t, n]
             for n in real_nodes
         )
-        - sum(beta_bar[o, t, u] * get_effective_capacity(o, t, u, x) for u in units if unit_built(x, t, u))
+        - sum(
+            beta_bar[o, t, u] * get_effective_capacity(o, t, u, x)
+            for u in units
+            if unit_built(x, t, u)
+        )
         + sum(
             initial_storage[u][o, to_year(t)] * phi_initial_storage[o, t, u]
             if t in year_first_hours
@@ -191,13 +193,16 @@ def get_objective(x, y):
             for u in hydro_units
         )
         - sum(
-            phi_storage_change_lb[o, t, u] * (-initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]])
+            phi_storage_change_lb[o, t, u]
+            * (-initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]])
             if t in year_last_hours
             else 0.0
             for u in hydro_units
         )
         - sum(
-            phi_storage_change_ub[o, t, u] * initial_storage[u][o, to_year(t)] * storage_change_ub[unit_to_node[u]]
+            phi_storage_change_ub[o, t, u]
+            * initial_storage[u][o, to_year(t)]
+            * storage_change_ub[unit_to_node[u]]
             if t in year_last_hours
             else 0.0
             for u in hydro_units
@@ -208,10 +213,13 @@ def get_objective(x, y):
             if line_built(y, t, l)
         )
         - sum(
-            np.pi * (mu_angle_bar[o, t, n] + mu_angle_underline[o, t, n]) for n in ac_nodes
+            np.pi * (mu_angle_bar[o, t, n] + mu_angle_underline[o, t, n])
+            for n in ac_nodes
         )
         - sum(
-            beta_ramp_bar[o, t, u] * get_maximum_ramp(o, t, u, x) if t in ramp_hours else 0.0
+            beta_ramp_bar[o, t, u] * get_maximum_ramp(o, t, u, x)
+            if t in ramp_hours
+            else 0.0
             for u in units
             if unit_built(x, t, u)
         )
@@ -226,9 +234,7 @@ def get_objective(x, y):
         for t in hours
     )
 
-    obj -= sum(
-        beta_emissions[y] * emission_targets[y] for y in years
-    )
+    obj -= sum(beta_emissions[y] * emission_targets[y] for y in years)
 
     return obj
 
@@ -359,7 +365,9 @@ def get_uncertain_variables():
 
     values = np.zeros_like(nominal_demand)
     for n in real_nodes:
-        values[:, :, n] = float(int(w[n].x)) * demand_increase[:, :, n] + nominal_demand[:, :, n]
+        values[:, :, n] = (
+            float(int(w[n].x)) * demand_increase[:, :, n] + nominal_demand[:, :, n]
+        )
 
     return names, values
 

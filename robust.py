@@ -190,8 +190,8 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
         print("Primal variables:")
         print(separator)
         for v in master_problem.getVars():
-            if 'flow_%d' % iteration in v.varName:
-                key = v.varName.split(',')
+            if "flow_%d" % iteration in v.varName:
+                key = v.varName.split(",")
                 if int(key[1]) == 17 and int(key[2]) in ac_lines:
                     print(v.varName, v.x)
 
@@ -225,7 +225,9 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
     plot_investments = True
 
     if plot_investments:
-        create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_algorithm)
+        create_investment_plots(
+            xhat, yhat, master_problem_algorithm, subproblem_algorithm
+        )
 
     # Check if ramping constraints were active.
     up_ramp_active = False
@@ -258,8 +260,12 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
                 t1 = (y + 1) * num_hours_per_year - 1
 
                 final_storage = s[o, t1, u, iteration].x
-                final_storage_lb = initial_storage[u][o, y] * storage_change_lb[unit_to_node[u]]
-                final_storage_ub = initial_storage[u][o, y] * storage_change_ub[unit_to_node[u]]
+                final_storage_lb = (
+                    initial_storage[u][o, y] * storage_change_lb[unit_to_node[u]]
+                )
+                final_storage_ub = (
+                    initial_storage[u][o, y] * storage_change_ub[unit_to_node[u]]
+                )
 
                 if np.isclose(final_storage, final_storage_lb):
                     storage_lb_active = True
@@ -284,21 +290,18 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
 
     if plot_emissions:
         emissions = get_emissions(g)
-        create_emission_plots(emissions, emission_prices,
-                              master_problem_algorithm, subproblem_algorithm)
+        create_emission_plots(
+            emissions, emission_prices, master_problem_algorithm, subproblem_algorithm
+        )
 
 
 def main():
     # Run robust optimization.
     parser = argparse.ArgumentParser(description="Run robust optimization.")
     parser.add_argument(
-        "master_problem_algorithm",
-        type=str,
-        choices=("benders_dc", "milp_dc"),
+        "master_problem_algorithm", type=str, choices=("benders_dc", "milp_dc")
     )
-    parser.add_argument(
-        "subproblem_algorithm", type=str, choices=("miqp_dc")
-    )
+    parser.add_argument("subproblem_algorithm", type=str, choices=("miqp_dc"))
 
     args = parser.parse_args()
 

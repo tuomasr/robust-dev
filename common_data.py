@@ -45,7 +45,7 @@ num_scenarios = 3
 scenarios = list(range(num_scenarios))
 
 # Years and hours.
-num_years = 10
+num_years = 2
 num_hours_per_year = 24
 num_hours = num_years * num_hours_per_year
 
@@ -59,7 +59,7 @@ representative_days = np.load("representative_days.npy")
 
 assert num_scenarios == len(representative_days)
 
-start_indices = representative_days*24
+start_indices = representative_days * 24
 end_indices = start_indices + num_hours_per_year
 
 
@@ -98,8 +98,8 @@ for y in years:
         load_growth_factor = load_growth ** y
         load_slice = load_real_nodes[start:end]
 
-        h1 = y*num_hours_per_year
-        h2 = (y+1)*num_hours_per_year
+        h1 = y * num_hours_per_year
+        h2 = (y + 1) * num_hours_per_year
 
         uncertainty_demand_increase[o, h1:h2, :] *= load_growth_factor
         load[o, h1:h2, :] = load_slice * load_growth_factor
@@ -111,12 +111,8 @@ generation_capacities = np.genfromtxt(
 
 # Wind and PV production varies with weather conditions. The installed capacity is scaled
 # with a "rate" in [0, 1].
-all_wind_rates = np.genfromtxt(
-    "wind_rates.csv", delimiter=";", skip_header=1,
-)
-all_pv_rates = np.genfromtxt(
-    "pv_rates.csv", delimiter=";", skip_header=1,
-)
+all_wind_rates = np.genfromtxt("wind_rates.csv", delimiter=";", skip_header=1)
+all_pv_rates = np.genfromtxt("pv_rates.csv", delimiter=";", skip_header=1)
 
 # Read wind and PV rates for the sampled days.
 wind_unit_idx = 8
@@ -130,8 +126,8 @@ for y in years:
         wind_slice = all_wind_rates[start:end, 1:]  # Skip first (hour) column.
         pv_slice = all_pv_rates[start:end, 1:]
 
-        h1 = y*num_hours_per_year
-        h2 = (y+1)*num_hours_per_year
+        h1 = y * num_hours_per_year
+        h2 = (y + 1) * num_hours_per_year
 
         wind_rates[o, h1:h2, :] = wind_slice
         pv_rates[o, h1:h2, :] = pv_slice
@@ -236,7 +232,8 @@ generation_type_to_emissions = {
     1: 0.2 / 0.4,
     2: 0.2 / 0.54,
     3: 0.28 / 0.39,
-    4: 0.0 / 0.35,  # Biomass not in ETS, debated. First value is estimated to be 0.2 - 0.3.
+    4: 0.0
+    / 0.35,  # Biomass not in ETS, debated. First value is estimated to be 0.2 - 0.3.
     5: 0.39 / 0.37,
     6: 0.0 / 0.33,
     7: 0.0 / 0.85,
@@ -262,7 +259,7 @@ for u in existing_units:
 # https://www.eea.europa.eu/data-and-maps/data/data-viewers/greenhouse-gases-viewer
 # https://emis.vito.be/sites/emis.vito.be/files/articles/3331/2016/CO2EmissionsfromFuelCombustion_Highlights_2016.pdf
 start_emissions = 90000.0
-final_emissions = 35000.0   # approx. 90 000 * (1-0.022)^9.
+final_emissions = 35000.0  # approx. 90 000 * (1-0.022)^9.
 emission_targets = np.linspace(start_emissions, final_emissions, num_years)
 
 assert len(emission_targets) == num_years
@@ -361,7 +358,7 @@ conventional_rates = {
     14: 0.95 / 1.85,
     15: 0.95 / 3.35,
     16: 0.9 / 4.64,
-    17: 0.95 / 3.35
+    17: 0.95 / 3.35,
 }
 
 availability_rates = np.zeros((len(scenarios), len(hours), len(units)))
@@ -428,12 +425,7 @@ for u in units:
     t = unit_to_generation_type[u]
     ramp_rates[:, :, u] = generation_type_to_ramp_rate[t]
 
-assert (
-    G_max.shape[-1]
-    == C_g.shape[-1]
-    == G_emissions.shape[-1]
-    == num_units
-)
+assert G_max.shape[-1] == C_g.shape[-1] == G_emissions.shape[-1] == num_units
 
 # Set initial hydro reservoir to the weeks which the sampled days belong to.
 # FI: http://wwwi2.ymparisto.fi/i2/95/fie7814.txt
@@ -457,26 +449,17 @@ nodemap = {3: 0, 4: 1, 5: 2, 6: 3, 7: 4}
 # much larger than other parameter values. Take the scaling into account in final storage
 # lower and upper bound constraints. The scaling values should be such that initial reservoir
 # values still remain higher than maximum hydro power generation.
-scalers = {
-    0: 1.0,
-    1: 1.0,
-    2: 1.0,
-    3: 1.0,
-    4: 1.0,
-    5: 1.0,
-    6: 1.0,
-    7: 1.0,
-}
+scalers = {0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0, 4: 1.0, 5: 1.0, 6: 1.0, 7: 1.0}
 
 for y in years:
     for o, idx in enumerate(start_indices):
-        week = int(idx / (7 * 24))     # Fix. 01/01/2014 is Wednesday.
+        week = int(idx / (7 * 24))  # Fix. 01/01/2014 is Wednesday.
 
         for u in hydro_units:
             n = nodemap[unit_to_node[u]]
 
-            h1 = y*num_hours_per_year
-            h2 = (y+1)*num_hours_per_year
+            h1 = y * num_hours_per_year
+            h2 = (y + 1) * num_hours_per_year
 
             initial_storage[u][o, y] = weekly_reservoir[week, n] / scalers[n]
             # Convert weekly inflow to hourly.
@@ -486,25 +469,31 @@ storage_change_ub = {
     0: 0.0,
     1: 0.0,
     2: 0.0,
-    3: 0.145, #0.05802,
-    4: 0.233, #0.14784,
-    5: 0.825, #0.16817,
-    6: 0.143, #0.05178,
-    7: 0.204, #0.04949,
+    3: 0.145,  # 0.05802,
+    4: 0.233,  # 0.14784,
+    5: 0.825,  # 0.16817,
+    6: 0.143,  # 0.05178,
+    7: 0.204,  # 0.04949,
 }
-storage_change_ub = {n: ((1.0 + v / 168 * num_hours_per_year) * scalers[n] - (scalers[n] - 1.0)) for n, v in storage_change_ub.items()}
+storage_change_ub = {
+    n: ((1.0 + v / 168 * num_hours_per_year) * scalers[n] - (scalers[n] - 1.0))
+    for n, v in storage_change_ub.items()
+}
 
 storage_change_lb = {
     0: 0.0,
     1: 0.0,
     2: 0.0,
-    3: -0.044, #-0.0330,
-    4: -0.198, #-0.1342,
-    5: -0.449, #-0.1523,
-    6: -0.055, #-0.0415,
-    7: -0.07, #-0.0633,
+    3: -0.044,  # -0.0330,
+    4: -0.198,  # -0.1342,
+    5: -0.449,  # -0.1523,
+    6: -0.055,  # -0.0415,
+    7: -0.07,  # -0.0633,
 }
-storage_change_lb = {n: ((1.0 + v / 168 * num_hours_per_year) * scalers[n] - (scalers[n] - 1.0)) for n, v in storage_change_lb.items()}
+storage_change_lb = {
+    n: ((1.0 + v / 168 * num_hours_per_year) * scalers[n] - (scalers[n] - 1.0))
+    for n, v in storage_change_lb.items()
+}
 
 # Build lines x nodes incidence matrix for existing lines.
 # List pairs of nodes that are connected. Note: these are in 1-based indexing.
@@ -549,7 +538,7 @@ existing_lines = list(range(len(lines)))
 
 incidence = np.zeros((num_existing_lines, num_nodes))
 
-ac_nodes = set()    # The set of nodes which are part of the AC circuit.
+ac_nodes = set()  # The set of nodes which are part of the AC circuit.
 dc_nodes = set()
 
 for line_idx, line in enumerate(lines):
@@ -664,7 +653,9 @@ if generate_candidate_lines:
 
                     incidence = np.concatenate((incidence, row), axis=0)
                     F_max = np.concatenate((F_max, [[candidate_line_capacity]]), axis=1)
-                    F_min = np.concatenate((F_min, [[-candidate_line_capacity]]), axis=1)
+                    F_min = np.concatenate(
+                        (F_min, [[-candidate_line_capacity]]), axis=1
+                    )
 
                     candidate_lines.append(line_idx)
 
@@ -718,17 +709,12 @@ discount_factor = 1.03
 # 8: wind
 # 9: pv
 # See also: https://www.eia.gov/outlooks/aeo/assumptions/pdf/table_8.2.pdf
-cost_per_type = {
-    1: 0.8,
-    2: 1.0,
-    3: 0.8,
-    4: 3.9,
-    8: 1.6,
-    9: 1.8,
-}   # In millions.
+cost_per_type = {1: 0.8, 2: 1.0, 3: 0.8, 4: 3.9, 8: 1.6, 9: 1.8}  # In millions.
 
 C_x = {
-    (year, unit): 1e6 * cost_per_type[unit_to_generation_type[unit]] * discount_factor ** (-year)
+    (year, unit): 1e6
+    * cost_per_type[unit_to_generation_type[unit]]
+    * discount_factor ** (-year)
     for year in years
     for unit in candidate_units
 }
