@@ -113,7 +113,7 @@ def add_primal_variables(iteration):
     delta = m.addVars(
         scenarios,
         hours,
-        ac_nodes,   # Nodes that are part of the AC circuit.
+        ac_nodes,  # Nodes that are part of the AC circuit.
         [iteration],
         name="voltage_angle_%d" % iteration,
         lb=-np.pi,
@@ -159,7 +159,8 @@ m.addConstrs(
 
 m.addConstrs(
     (
-        sum(xhat[t, u] for t in years) <= maximum_candidate_unit_capacity_by_type[unit_to_generation_type[u]]
+        sum(xhat[t, u] for t in years)
+        <= maximum_candidate_unit_capacity_by_type[unit_to_generation_type[u]]
         for u in candidate_units
     ),
     name="maximum_unit_investment",
@@ -194,7 +195,11 @@ def augment_master_problem(current_iteration, d):
     m.addConstr(
         theta
         - sum(
-            sum(discount_factor ** (-to_year(t)) * sum(C_g[o, t, u] * g[o, t, u, v] for u in units) for t in hours)
+            sum(
+                discount_factor ** (-to_year(t))
+                * sum(C_g[o, t, u] * g[o, t, u, v] for u in units)
+                for t in hours
+            )
             * weights[o]
             for o in scenarios
         )
@@ -256,7 +261,9 @@ def augment_master_problem(current_iteration, d):
     year_last_hours = [t for t in hours if is_year_last_hour(t)]
     m.addConstrs(
         (
-            initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]] - s[o, t, u, v] <= 0.0
+            initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]]
+            - s[o, t, u, v]
+            <= 0.0
             for o in scenarios
             for t in year_last_hours
             for u in hydro_units
@@ -266,7 +273,9 @@ def augment_master_problem(current_iteration, d):
 
     m.addConstrs(
         (
-            s[o, t, u, v] - initial_storage[u][o, to_year(t)] * storage_change_ub[unit_to_node[u]] <= 0.0
+            s[o, t, u, v]
+            - initial_storage[u][o, to_year(t)] * storage_change_ub[unit_to_node[u]]
+            <= 0.0
             for o in scenarios
             for t in year_last_hours
             for u in hydro_units
@@ -370,7 +379,9 @@ def get_investment_and_availability_decisions(initial=False, many_solutions=Fals
     for t in years:
         for u in candidate_units:
             unit_type = unit_to_generation_type[u]
-            initial_generation_investment = maximum_candidate_unit_capacity_by_type[unit_type]
+            initial_generation_investment = maximum_candidate_unit_capacity_by_type[
+                unit_type
+            ]
 
             if initial:
                 if t == 0:

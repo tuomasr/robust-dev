@@ -21,14 +21,15 @@ wind = np.genfromtxt("wind_rates.csv", delimiter=";", skip_header=1)[:, 1:]
 load = normalize(load, axis=0)
 wind = normalize(wind, axis=0)
 
+
 def reshape(arr, num_hours_to_average=1):
     """Reshape array for clustering."""
     # Average every num_hours_to_average elements.
     cols = arr.shape[1]
-    arr2 = np.transpose(arr)    # 8x8760
-    arr2 = np.reshape(arr2, (-1, num_hours_to_average)) # (8*8760/2) x 2
-    arr2 = np.mean(arr2, axis=1) # (8*8760/2) x 1
-    arr2 = np.reshape(arr2, (cols, -1)) # 8 x (8760/2)
+    arr2 = np.transpose(arr)  # 8x8760
+    arr2 = np.reshape(arr2, (-1, num_hours_to_average))  # (8*8760/2) x 2
+    arr2 = np.mean(arr2, axis=1)  # (8*8760/2) x 1
+    arr2 = np.reshape(arr2, (cols, -1))  # 8 x (8760/2)
     arr2 = np.transpose(arr2)
 
     # By default, 8760x8 array is reshaped into 365x(24*8)
@@ -39,6 +40,7 @@ def reshape(arr, num_hours_to_average=1):
     arr3 = np.reshape(arr2, (nrows2, -1))
 
     return arr3
+
 
 num_hours_to_average = 2
 
@@ -64,6 +66,7 @@ for i in range(n_clusters):
     center_data = data[labels == i]
     centers.append(np.mean(center_data, axis=0))
 
+
 def find_nearest(arr, val):
     """Find nearest data point to a value."""
     diffs = np.abs(arr - val)
@@ -71,8 +74,12 @@ def find_nearest(arr, val):
     idx = np.argmin(total_diffs)
     return idx
 
+
 days = [find_nearest(data, centers[i]) for i in range(n_clusters)]
-weekdays = [(datetime.datetime(2014, 1, 1) + datetime.timedelta(day)).isoweekday() for day in days]
+weekdays = [
+    (datetime.datetime(2014, 1, 1) + datetime.timedelta(day)).isoweekday()
+    for day in days
+]
 approx_months = [int(day / 30) + 1 for day in days]
 
 print("Representative days are the indices:", days)

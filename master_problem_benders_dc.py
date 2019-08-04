@@ -216,7 +216,8 @@ sp.addConstrs(
 
 sp.addConstrs(
     (
-        sum(xhat[t, u] for t in years) <= maximum_candidate_unit_capacity_by_type[unit_to_generation_type[u]]
+        sum(xhat[t, u] for t in years)
+        <= maximum_candidate_unit_capacity_by_type[unit_to_generation_type[u]]
         for u in candidate_units
     ),
     name="maximum_unit_investment1",
@@ -276,7 +277,10 @@ def augment_master(
             delta
             - sum(
                 (
-                    +sum(get_effective_capacity(o, t, u, x) * beta_bar[o, t, u, v] for u in existing_units)
+                    +sum(
+                        get_effective_capacity(o, t, u, x) * beta_bar[o, t, u, v]
+                        for u in existing_units
+                    )
                     - sum(
                         F_min[o, t, l] * line_built(y, t, l) * mu_underline[o, t, l, v]
                         for l in lines
@@ -287,7 +291,8 @@ def augment_master(
                     )
                     - sum(
                         (
-                            (-get_maximum_ramp(o, t, u, x)) * beta_ramp_underline[o, t, u, v]
+                            (-get_maximum_ramp(o, t, u, x))
+                            * beta_ramp_underline[o, t, u, v]
                             if t in ramp_hours
                             else 0.0
                         )
@@ -322,13 +327,19 @@ def augment_master(
                         for u in hydro_units
                     )
                     + sum(
-                        phi_storage_change_lb[o, t, u, v] * (-initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]])
+                        phi_storage_change_lb[o, t, u, v]
+                        * (
+                            -initial_storage[u][o, to_year(t)]
+                            * storage_change_lb[unit_to_node[u]]
+                        )
                         if t in year_last_hours
                         else 0.0
                         for u in hydro_units
                     )
                     + sum(
-                        phi_storage_change_ub[o, t, u, v] * initial_storage[u][o, to_year(t)] * storage_change_ub[unit_to_node[u]]
+                        phi_storage_change_ub[o, t, u, v]
+                        * initial_storage[u][o, to_year(t)]
+                        * storage_change_ub[unit_to_node[u]]
                         if t in year_last_hours
                         else 0.0
                         for u in hydro_units
@@ -351,7 +362,10 @@ def augment_master(
         mp.addConstr(
             sum(
                 (
-                    +sum(get_effective_capacity(o, t, u, x) * beta_bar[o, t, u, v] for u in existing_units)
+                    +sum(
+                        get_effective_capacity(o, t, u, x) * beta_bar[o, t, u, v]
+                        for u in existing_units
+                    )
                     - sum(
                         F_min[o, t, l] * line_built(y, t, l) * mu_underline[o, t, l, v]
                         for l in lines
@@ -362,7 +376,8 @@ def augment_master(
                     )
                     - sum(
                         (
-                            (-get_maximum_ramp(o, t, u, x)) * beta_ramp_underline[o, t, u, v]
+                            (-get_maximum_ramp(o, t, u, x))
+                            * beta_ramp_underline[o, t, u, v]
                             if t in ramp_hours
                             else 0.0
                         )
@@ -397,13 +412,19 @@ def augment_master(
                         for u in hydro_units
                     )
                     + sum(
-                        phi_storage_change_lb[o, t, u, v] * (-initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]])
+                        phi_storage_change_lb[o, t, u, v]
+                        * (
+                            -initial_storage[u][o, to_year(t)]
+                            * storage_change_lb[unit_to_node[u]]
+                        )
                         if t in year_last_hours
                         else 0.0
                         for u in hydro_units
                     )
                     + sum(
-                        phi_storage_change_ub[o, t, u, v] * initial_storage[u][o, to_year(t)] * storage_change_ub[unit_to_node[u]]
+                        phi_storage_change_ub[o, t, u, v]
+                        * initial_storage[u][o, to_year(t)]
+                        * storage_change_ub[unit_to_node[u]]
                         if t in year_last_hours
                         else 0.0
                         for u in hydro_units
@@ -439,7 +460,11 @@ def augment_slave(current_iteration, d, yhat, y):
     sp.addConstr(
         theta
         - sum(
-            sum(discount_factor ** (-to_year(t)) * sum(C_g[o, t, u] * g[o, t, u, v] for u in units) for t in hours)
+            sum(
+                discount_factor ** (-to_year(t))
+                * sum(C_g[o, t, u] * g[o, t, u, v] for u in units)
+                for t in hours
+            )
             * weights[o]
             for o in scenarios
         )
@@ -501,7 +526,9 @@ def augment_slave(current_iteration, d, yhat, y):
     year_last_hours = [t for t in hours if is_year_last_hour(t)]
     sp.addConstrs(
         (
-            initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]] - s[o, t, u, v] <= 0.0
+            initial_storage[u][o, to_year(t)] * storage_change_lb[unit_to_node[u]]
+            - s[o, t, u, v]
+            <= 0.0
             for o in scenarios
             for t in year_last_hours
             for u in hydro_units
@@ -511,7 +538,9 @@ def augment_slave(current_iteration, d, yhat, y):
 
     sp.addConstrs(
         (
-            s[o, t, u, v] - initial_storage[u][o, to_year(t)] * storage_change_ub[unit_to_node[u]] <= 0.0
+            s[o, t, u, v]
+            - initial_storage[u][o, to_year(t)] * storage_change_ub[unit_to_node[u]]
+            <= 0.0
             for o in scenarios
             for t in year_last_hours
             for u in hydro_units
@@ -602,12 +631,22 @@ def augment_slave(current_iteration, d, yhat, y):
 
     # Voltage angle constraints.
     sp.addConstrs(
-        (delta[o, t, n, v] <= np.pi for o in scenarios for t in hours for n in ac_nodes),
+        (
+            delta[o, t, n, v] <= np.pi
+            for o in scenarios
+            for t in hours
+            for n in ac_nodes
+        ),
         name="voltage_angle_ub_%d" % current_iteration,
     )
 
     sp.addConstrs(
-        (-delta[o, t, n, v] <= np.pi for o in scenarios for t in hours for n in ac_nodes),
+        (
+            -delta[o, t, n, v] <= np.pi
+            for o in scenarios
+            for t in hours
+            for n in ac_nodes
+        ),
         name="voltage_angle_lb_%d" % current_iteration,
     )
 
@@ -763,7 +802,9 @@ def get_investment_and_availability_decisions(initial=False, many_solutions=Fals
     for t in years:
         for u in candidate_units:
             unit_type = unit_to_generation_type[u]
-            initial_generation_investment = maximum_candidate_unit_capacity_by_type[unit_type]
+            initial_generation_investment = maximum_candidate_unit_capacity_by_type[
+                unit_type
+            ]
 
             if initial:
                 if t == 0:
@@ -948,5 +989,6 @@ def solve_master_problem(current_iteration, d):
             augment_master(dual_values, current_iteration, iteration, k, d)
 
     raise RuntimeError("Max iterations hit in Benders. LB: %f, UB: %f" % (lb, ub))
+
 
 master_problem = sp

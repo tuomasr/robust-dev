@@ -313,7 +313,8 @@ def augment_master(dual_values, iteration, benders_iteration, kk, d):
                 for v in range(1, iteration + 1)
             )
             >= 0.0,
-            name="delta_constraint_single_cut_%d_%d_%d" % (iteration, benders_iteration, kk)
+            name="delta_constraint_single_cut_%d_%d_%d"
+            % (iteration, benders_iteration, kk),
         )
     else:
         raise NotImplementedError()
