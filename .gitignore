@@ -6,3 +6,8 @@
 *.blg
 *.pdf
 *.synctex.gz
+*.pickle
+*.png
+.vscode
+*.fls
+*.fdb_latexmk
