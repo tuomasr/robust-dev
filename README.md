@@ -14,3 +14,9 @@ Call robust.py with the selected master problem algorithm:
 ```
 python robust.py <benders_dc|milp_dc> miqp_dc
 ```
+
+To generate representative days:
+
+```
+python clustering.py
+```
