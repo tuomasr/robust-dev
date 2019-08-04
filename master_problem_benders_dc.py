@@ -61,6 +61,7 @@ from helpers import (
     compute_objective_gap,
     is_year_first_hour,
     is_year_last_hour,
+    read_investment_and_availability_decisions,
 )
 
 
@@ -260,7 +261,6 @@ def augment_master(
     dual_values, iteration, benders_iteration, solution_number, d, unbounded=False
 ):
     # Augment the Benders master problem with a new cut from the slave problem.
-
     # Unpack the dual values. Be careful with the order.
     sigma, beta_bar, mu_underline, mu_bar, beta_ramp_underline, beta_ramp_bar, beta_emissions, rho_bar, rho_underline, phi_initial_storage, phi_storage, phi_storage_change_lb, phi_storage_change_ub = (
         dual_values
@@ -446,9 +446,9 @@ def augment_master(
 
 
 def augment_slave(current_iteration, d, yhat, y):
+    # Augment the Benders slave with results from a new CC iteration.
     sp.setObjective(get_investment_cost(xhat, yhat) + theta, GRB.MINIMIZE)
 
-    # Augment the slave problem for the current iteration.
     v = current_iteration
 
     # Create additional primal variables indexed with the current iteration.
@@ -472,7 +472,7 @@ def augment_slave(current_iteration, d, yhat, y):
         name="minimum_subproblem_objective_%d" % current_iteration,
     )
 
-    # Balance equation. Note that d[o, t, n, v] is input data from the subproblem.
+    # Balance equation. Note that d[o, t, n, v] is input data from the CC subproblem.
     sp.addConstrs(
         (
             sum(g[o, t, u, v] for u in node_to_unit[n])
@@ -791,65 +791,10 @@ def update_slave(updatable_constrs, current_iteration, x, yhat, y):
 def get_investment_and_availability_decisions(initial=False, many_solutions=False):
     # Read current investments to generation and transmission and whether the units and lines are
     # operational at some time point.
-    current_xhat = dict()
-    current_yhat = dict()
-
-    current_x = dict()
-    current_y = dict()
-
-    initial_transmission_investment = 1.0
-
-    for t in years:
-        for u in candidate_units:
-            unit_type = unit_to_generation_type[u]
-            initial_generation_investment = maximum_candidate_unit_capacity_by_type[
-                unit_type
-            ]
-
-            if initial:
-                if t == 0:
-                    current_xhat[t, u] = initial_generation_investment
-                else:
-                    current_xhat[t, u] = 0.0
-
-                current_x[t, u] = initial_generation_investment
-            else:
-                current_xhat[t, u] = xhat[t, u].x
-                current_x[t, u] = x[t, u].x
-
-        for l in candidate_lines:
-            if initial:
-                if t == 0:
-                    current_yhat[t, l] = initial_transmission_investment
-                else:
-                    current_yhat[t, l] = 0.0
-
-                current_y[t, l] = initial_transmission_investment
-            else:
-                if many_solutions:
-                    current_yhat[t, l] = float(int(yhat[t, l].Xn))
-                    current_y[t, l] = float(int(y[t, l].Xn))
-                else:
-                    current_yhat[t, l] = float(int(yhat[t, l].x))
-                    current_y[t, l] = float(int(y[t, l].x))
-
-    return current_xhat, current_yhat, current_x, current_y
-
-
-def get_emissions(g):
-    i = g.keys()[0][-1]
-
-    emissions = np.zeros(len(years))
-
-    for y in years:
-        emissions[y] = sum(
-            weights[o] * g[o, t, u, i].x * G_emissions[o, t, u]
-            for o in scenarios
-            for t in to_hours(y)
-            for u in units
-        )
-
-    return emissions
+    # At the first CC iteration, return full investment.
+    return read_investment_and_availability_decisions(
+        x, xhat, y, yhat, initial, many_solutions
+    )
 
 
 def get_dual_variables(all_constrs):
@@ -893,6 +838,8 @@ def solve_master_problem(current_iteration, d):
     # Solve the master problem using Benders.
 
     # Dummy return values on the first iteration.
+    # Full investment is used as the initial CC master problem solution to ensure CC subproblem
+    # feasibility.
     if current_iteration == 0:
         return -np.inf, None, None
 
@@ -953,6 +900,8 @@ def solve_master_problem(current_iteration, d):
             if k > 0 and solution_hash in solution_hashes:
                 continue
             elif k == 0 and solution_hash in solution_hashes:
+                # Count the number of times Benders visits the same solution. If this number is
+                # high, then there is an opportunity to start caching slave problem solutions.
                 duplicates += 1
                 print("Current duplicates: %d. :(" % duplicates)
 

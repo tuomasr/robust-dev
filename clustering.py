@@ -1,4 +1,4 @@
-# Define data used by both the master problem and subproblem.
+# Define representative days used as operating conditions in the robust optimization problem.
 
 from __future__ import absolute_import
 from __future__ import division
@@ -42,6 +42,7 @@ def reshape(arr, num_hours_to_average=1):
     return arr3
 
 
+# Allows averaging consecutive hours to reduce the dimension of data points to cluster.
 num_hours_to_average = 2
 
 load = reshape(load, num_hours_to_average)
