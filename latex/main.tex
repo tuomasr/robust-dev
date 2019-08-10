@@ -46,52 +46,61 @@
 \maketitle
 
 \begin{abstract}
-Abstract here
+Recent work employs two-stage robust optimization to deal with uncertain demand and generation parameters in the generation and transmission expansion planning problem. We build on this work by considering multi-year investment horizon with an objective of reducing greenhouse gas emissions. In addition, we consider multiple hours in power system operations to capture the flexibility requirements for utilizing variable renewable energy sources such as wind and solar power. To improve the solution time of the existing exact methods for this problem, we employ Benders decomposition and solve a mixed-integer quadratic problem to avoid expensive big-M-linearizations. The results for a realistic case study for the Nordic and Baltic countries show the effectiveness of our solution method. Also, the results indicate that investments in new transmission lines, wind power and flexible generation capacity are required for reducing greenhouse gas emissions in this area.
 \end{abstract}
 \begin{IEEEkeywords}
-Emission reduction, generation expansion, robust optimization, stochastic programming, transmission expansion
+Emission reduction, generation and transmission expansion, robust optimization, stochastic programming, Benders decomposition
 \end{IEEEkeywords}
 
 \section{Introduction}
 
 % TODO:
-% - update introduction
-% - explain contributions
 % - explain constraints
 % - update case study, results, and analysis
 % - conclusions
 
 % introduction
-Most nations have ratified the Paris agreement that aims at capping the increase in the global average temperature by lowering greenhouse gas (GHG) emissions, for example \cite{Paris_agreement}. To this end, there are nation-level policies that set speficic goals for GHG emission reductions through increasing the share of renewable energy, for example \cite{EU_climate_action}. However, integrating large investments in variable renewable energy sources (vRES) such as wind and solar power to existing power systems is likely to require significant investments in transmission capacity as well as to flexible generation technologies (e.g. hydro, combined cycle gas turbines, CCGT), dispatchable RES (e.g biomass), and storage to guarantee the power system adequacy and security \cite{Zappa}.
+Most nations have ratified the Paris agreement that aims at capping the increase in the global average temperature by lowering greenhouse gas (GHG) emissions, for example \cite{Paris_agreement}. To this end, there are nation-level policies that set speficic goals for GHG emission reductions through measures such as increasing energy efficiency and the share of renewable energy of total energy consumption \cite{EU_climate_action}. Due to the limited availability of dispatchable renewable energy sources (RES) such as hydro power and biomass, investments in non-dispatchable, variable RES (VRES) such as wind and solar power are required. However, integrating large investments in VRES to existing power systems is likely to require significant investments in transmission capacity as well as to flexible generation technologies (e.g. combined cycle gas turbines, CCGT) and storage to guarantee the power system adequacy and security \cite{Zappa}.
 
 % what this paper is about
-Consequently, in this paper, we consider the Generation and Transmission Expansion Planning (G\&TEP) problem with the objective of reducing GHG emissions under uncertain demand and vRES generation. More specifically, we employ a tri-level model representing two stages in which the first stage and level consider a multi-year investment horizon for vRES while at the second stage, the second level uses robust optimization to choose a worst-case demand for the third level that minimizes multi-period power system operation costs under a set of vRES generation scenarios. This combination of robust optimization and stochastic programming in two stages is called stochastic adaptive robust optimization (SARO) \cite{Baringo2018}. This framework allows us to study what transmission line, vRES, and other generation investments are required to meet long-term GHG emission reduction goals while meeting operational adequacy under random and worst-case perturbations in the short-term.
+Consequently, in this paper, we consider the Generation and Transmission Expansion Planning (G\&TEP) problem with the objective of reducing GHG emissions under uncertain demand and VRES generation, for example. More specifically, we employ a tri-level model representing two stages in which the first stage and level consider a multi-year investment horizon for generation and transmission expansion. At the second stage, the second level uses robust optimization (RO) to choose a worst-case demand for the third level that uses stochastic programming to minimize the cost of detailed, multi-hour power system operation under a set of operating conditions (scenarios) for uncertain parameters such as VRES output and generation costs. This combination of RO and stochastic programming in two stages is called stochastic adaptive robust optimization (SARO) \cite{Baringo2018}. This framework allows us to study what transmission line, VRES, and other generation investments are required to meet long-term GHG emission reduction goals while meeting short-term operational constraints on demand, transmission, generator ramping and availability with random and worst-case realizations of the related parameters. We apply the framework to a realistic case study covering the Nordic and Baltic countries.
 
 % literature review
 
 % GTEP
-Similar tri-level framework is employed for the G\&TEP problem in \cite{Minquez, Moreira, Baringo2018} but without the 1st and 3rd level time dimensions and a goal for GHG emission reduction. \cite{Li, Roldan} consider multiple periods at both levels but they do not focus on GHG emission reduction and use a different decomposition technique. Also, the G\&TEP problem has been studied extensively in single- (\cite{Lopez, Dominguez, Munoz}) and bi-level settings (\cite{Zhang, Pisciella, Maurovich}).
-
-% Alternative solution methods
-% By contrast, \cite{Barati} consider a multi-period G&TEP problem but.
+Similar tri-level framework is employed for the G\&TEP problem in \cite{Minguez, Moreira, Baringo2018} but without the multi-year and multi-hour time dimensions and a goal for GHG emission reduction. \cite{Li, Roldan} consider multiple years but they do not focus on GHG emission reduction, do not model storage or hydro power, and use different solution techniques. Also, the G\&TEP problem has been studied extensively in single- (\cite{Lopez, Dominguez, Munoz, Chen}) and bi-level settings (\cite{Zhang, Pisciella, Maurovich}) but these do not employ RO for uncertainty modeling.
 
 % Fully renewable
-Likewise, approaches for GHG emission reduction in the energy system have been studied extensively. \cite{Hansen}, \cite{Blakers}, \cite{Colbertaldo}, and \cite{Esteban} explore the long-term plan toward a fully renewable power system in Germany, Australia, California, and Japan respectively. They all find that significant amount of vRES generation needs to be complemented with dispatchable RES generation as well as storage technologies. By contrast, \cite{Chen, Palmintier} study power system expansion with detailed short-term power system operations under constraints on GHG emissions and the share of RES generation. In particular, they find that omitting short-term flexibility constraints such as ramping constraints leads to sub-optimal expansion plans and even power systems unable to meet demand.
+Likewise, approaches for GHG emission reduction in the energy system have been studied extensively. \cite{Hansen}, \cite{Blakers}, \cite{Colbertaldo}, and \cite{Esteban} explore the long-term plan toward a fully renewable power system in Germany, Australia, California, and Japan respectively. They all find that significant amount of vRES generation needs to be complemented with dispatchable RES generation as well as storage technologies. However, their methodologies are limited in that they consider fixed cases for generation and transmission expansion and omit details such as transmission network, certain generation types, or ramping in short-term power system operations. In fact, \cite{Palmintier} solve for an expansion plan with constraints on GHG emissions and the share of RES generation and show that ignoring operational constraints leads to large errors in estimating GHG emissions.
 
-% central planning
-Typically, the G&TEP problem is solved from the perspective of a central planner such as the transmissions system operator (TSO). Although transmission investments are often made by such a central planner, the generation investments are usually made by independent market participants \cite{Baringo2018}. However, the central planner may use incentive policies to encourage investment into certain generation units \cite{Zhou, Das}. Nevertheless, \cite{Jin, Roh, Pozo} consider multiple companies investing in generation but this leads to problems with multiple equilibria which require custom solution algorithms, possibly with computationally expensive linearization schemes and no optimality guarantees.
+% Central planning
+Typically, the G\&TEP problem is solved from the perspective of a central planner such as the transmissions system operator (TSO). Although transmission investments are often made by such a central planner, the generation investments are usually made by independent market participants \cite{Baringo2018}. However, the central planner may use incentive policies to encourage investment into certain generation units \cite{Zhou, Das}. Nevertheless, \cite{Jin, Roh, Pozo} consider multiple companies investing in generation but this leads to problems with multiple equilibria which require custom solution algorithms, possibly with computationally expensive linearization schemes and no optimality guarantees.
 
-% Other relevant work...
+% Solution methods
+Even with the simplifying assumption of a central planner, the tri-level SARO problems for G\&TEP are computationally challenging. \cite{Minguez} combine the best features of earlier exact solution algorithms to develop a more effective solution method based on the column-and-constraint (CC) algorithm in which solving the first level and the second as well as third level problems alternate until their costs match. These alternating problems are called the master problem and subproblem, respectively. In the context of G\&TEP, the master problem is a mixed-integer linear program (MILP) and the subproblem is a mixed-integer non-linear problem (MINLP) that can be reformulated as a computationally expensive MILP using big-M-based linearization. To this end, \cite{Minguez2018} develop an approximate block coordinate descent method to avoid the expensive linearization of the subproblem and thereby accelerate its solution. Other inexact solution methods involve metaheuristics such as genetic algorithms \cite{Barati} and particle swarm optimization \cite{Hemmati}. However, in this paper, we note that the subproblem is an MIQP, which can be solved faster than the linearized MILP using modern solvers such as Gurobi. Moreover, we profile the CC algorithm and note that the master problem is a computational bottleneck as its size increases at every CC iteration. Consequently, we employ Benders decomposition (\cite{Conejo}) to break up the large MILP master problem into a small MILP and a large linear program (LP), which are faster to solve for large problem instances and lend themselves to parallelization.
 
+% Contributions summarized in more detail
+Given this context, the contributions of this paper are:
+\begin{enumerate}
+	\item To consider multi-year and multi-hour time scales in a SARO problem for G\&TEP.
+	\item To consider detailed power system operations including hydro power and a constraint for emissions in a realistic case study for Nordic and Baltic countries.
+	\item To improve the solution time of earlier exact methods by applying Benders decomposition to the master problem and by solving the subproblem as an MIQP.
+\end{enumerate}
 
-% contributions summarized in more detail
-
-
-% paper organization
-This remaining of this paper is organized as follows. Section \ref{section_problem_description} presents the mathematical formulation of our SARO problem. Section \ref{section_case_study} presents a realistic case study and its results. Finally, Section \ref{section_conclusions} provides conclucions.
+% Paper organization
+The remaining of this paper is organized as follows. Section \ref{section_problem_description} presents the mathematical formulation of our SARO problem. Section \ref{section_case_study} presents a realistic case study and its results. Finally, Section \ref{section_conclusions} provides conclucions.
 
 \section{Problem description}
 \label{section_problem_description}
+
+% points:
+% - time scales
+% - emissions decrease
+% - robust optimization and stochastic programming reasoning for uncertainty modelling
+
+At the upper level of our SARO problem, we consider a central planner that makes generation and transmission expansion decisions in a long-term horizon consisting of time steps $t$ that can be interpreted as years, for example. While making the expansion plan, the central planner considers the lower level of the SARO problem in which a market operator minimizes power system operation costs in each upper-level time step $t$ under worst case demand and multiple operating conditions $o$ that represent uncertainty in generation cost parameters and VREs generation, for example. In order to capture the variability in demand and VRE generation, we model power system operations within each upper-level time step $t$ using a number of lower-level time steps $\tau$ that can be interpreted as hours, for example. In addition to attaining minimum cost operations, the central planner is required to consider an upper bound for emissions in each upper-level time step.
+
+A combination of robust optimization and stochastic programming is used for modeling uncertainty when making the expansion plan. Following \cite{Baringo2018}, we use robust optimization to identify worst case realization for long-term uncertainties such as demand. On the other hand, stochastic programming is used to model short-term uncertainties such as VREs generation.
 
 \subsection{Notation}
 
@@ -180,43 +189,59 @@ This remaining of this paper is organized as follows. Section \ref{section_probl
 	$\theta$ 	& auxiliary variable for the column-and-constraint master problem objective function (€)
 \end{supertabular}
 
-\subsection{Stochastic robust optimization problem}
+\subsection{Stochastic adaptive robust optimization problem}
 
-The stochastic robust optimization problem is
+We use $\Omega$ and $\Xi$ to denote the uncertainty and feasibility sets, respectively. The stochastic adaptive robust optimization problem is
 
 \begin{align}
 &\underset{\Phi^{L1}}{\text{min}} \, P \sum\limits_{t} R^{-t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell} \right] + \nonumber \\
 &\label{saro_obj}\underset{\Phi^{L2} \in \Omega}{\text{max}} \quad \underset{\Phi^{L3} \in \Xi}{\text{min}} \sum\limits_o W_o \sum\limits_{\tau} R^{-t(\tau)} \sum\limits_{u} C^g_{u} g_{o, \tau, u} \\
 &\text{subject to} \nonumber \\
 &\label{master_constraint_first} x_{t, u} = \sum\limits_{t' = 1}^{t} \hat{x}_{t', u} 	\quad \forall t, u \in \Psi^{G+} \\
-&x_{t, u} \leq G^{inv, max}_u \quad \forall t, u \in \Psi^{G+} \\
-&\label{master_constraint_last} y_{t, \ell} = \sum\limits_{t' = 1}^{t} \hat{y}_{t', \ell} 	\quad \forall t, \ell \in \Psi^{L+}
+&\label{master_constraint_second} y_{t, \ell} = \sum\limits_{t' = 1}^{t} \hat{y}_{t', \ell} 	\quad \forall t, \ell \in \Psi^{L+} \\
+&\label{master_constraint_last} x_{t, u} \leq G^{inv, max}_u \quad \forall t, u \in \Psi^{G+}
 \end{align}
-where \( \Phi^{L1} \myeq \{ \hat{x}_{t, u}, x_{t, u}, \forall u \myin \Psi^{G+}; \hat{y}_{t, \ell}, y_{t, \ell}, \forall \ell \myin \Psi^{L+} \}, \forall t \), \( \Phi^{L2} \myeq \{ d_{o, \tau, n}, \forall o, \tau; w_{n} \}, \forall n \), and \( \Phi^{L3} \myeq \{ g_{o, \tau, u}, \forall u; s_{o, \tau, u}, \forall u \myin \Psi^{G, H}; f_{o, \tau, \ell}, \forall \ell; \delta_{o, \tau, n}, \forall n \}, \forall o, \tau \). The uncertainty set $\Omega$ is given by
+where \( \Phi^{L1} \myeq \{ \hat{x}_{t, u}, x_{t, u}, \forall u \myin \Psi^{G+}; \hat{y}_{t, \ell}, y_{t, \ell}, \forall \ell \myin \Psi^{L+} \}, \forall t \), \( \Phi^{L2} \myeq \{ d_{o, \tau, n}, \forall o, \tau; w_{n} \}, \forall n \), and \( \Phi^{L3} \myeq \{ g_{o, \tau, u}, \forall u; s_{o, \tau, u}, \forall u \myin \Psi^{G, H}; f_{o, \tau, \ell}, \forall \ell; \delta_{o, \tau, n}, \forall n \}, \forall o, \tau \).
+
+In the objective function ()\ref{saro_obj}), the first minimization problem represents the annualized generation and transmission expansion costs and the max-min problem represents minimal operation costs under the worst case realization of demand and a set of operating conditions for other uncertain parameters. The constraints (\ref{master_constraint_first}) and (\ref{master_constraint_second}) define the available new generation capacity and transmission lines at the upper-level time step $t$ as the sum of investments up to $t$. The constraint (\ref{master_constraint_last}) imposes upper bounds for the capacities of the new generation units.
+
+Following \cite{Minguez} and \cite{Baringo2018}, the uncertainty set $\Omega$ is given by
 \begin{align}
-\Omega = \{ &d_{o, \tau, n} = D^{-t(\tau)} (\tilde{D}_{o, \tau, n} + w_n \hat{D}_{o, \tau, n}) & \forall o, \tau, n \nonumber \\
-&\label{uncertainty_set}\sum\limits_n w_{n} \leq \Lambda^w \}.
+\label{uncertainty_set1}\{ &d_{o, \tau, n} = D^{-t(\tau)} (\tilde{D}_{o, \tau, n} + w_n \hat{D}_{o, \tau, n}) & \forall o, \tau, n \\
+&\label{uncertainty_set2}\sum\limits_n w_{n} \leq \Lambda^w \}.
 \end{align}
+Eq. (\ref{uncertainty_set1}) defines that demand is equal to the sum of nominal demand ($\tilde{D}_{o, \tau, n}$) and a possible demand increase ($\hat{D}_{o, \tau, n}$) multiplied by demand growth factor ($D$) that accrues at each upper-level time step. The demand increase is selected using binary variables $w_n$ to cause the maximum operation costs. Eq. (\ref{uncertainty_set2}) sets an uncertainty budget to how many demand increases the model can do.
+
 Given the optimal values \( x_{t, u}^*, \forall t, u \myin \Psi^{G+} \), \( y_{t, \ell}^*, \forall t, \ell \myin \Psi^{L+} \), and \( d_{o, \tau, n}^*, \forall o, \tau, n \), the feasibility set \( \Xi(g_{o, \tau, u}, s_{o, \tau, u}, f_{o, \tau, \ell}, \delta_{o, \tau, n}) \) is
 \begin{align}
 \{ &\sum\limits_{u | n(u) = n} g_{o, \tau, u} - \sum\limits_{\ell | s(\ell) = n} f_{o, \tau, \ell} + \nonumber \\
-&\sum\limits_{\ell | r(\ell) = n} f_{o, \tau, \ell} = d_{o, \tau, n}^* \quad \forall o, \tau, n\\
-&0 \leq g_{o, \tau, u} \leq A_{o, \tau, u} G_{o, \tau, u}^{max} \quad \forall o, \tau, u \in \Psi_n^G \\
-&0 \leq g_{o, \tau, u} \leq A_{o, \tau, u} x_{t(\tau), u}^* \quad \forall o, \tau, u \in \Psi_n^{G+} \\
-&G^{ramp,min}_{o, \tau, u} \leq g_{o, \tau + 1, u} - g_{o, \tau, u} \quad \forall o, \tau \in \Tau^{ramp}, u \\
-&g_{o, \tau + 1, u} - g_{o, \tau, u} \leq G^{ramp,max}_{o, \tau, u} \quad \forall o, \tau \in \Tau^{ramp}, u \\
-&\sum\limits_{o} \sum\limits_{\tau \in t} \sum\limits_{u} W_o G^{emission}_{o, \tau, u} g_{o, \tau, u} \leq E_{t} \quad \forall t \\
-&s_{o, \tau, u} \geq 0 \quad \forall o, \tau, u \in \Psi^{G, H} \\
-&s_{o, \tau, u} = S^0_{o, \tau, u} \quad \forall o, \tau \in \Tau^0, u \in \Psi^{G, H} \\
-&s_{o, \tau + 1, u} = s_{o, \tau, u} - g_{o, \tau, u} + I_{o, \tau, u} \, \, \forall o, \tau \in \Tau^{ramp}, u \in \Psi^{G, H} \\
-&S^{min}_{o, \tau, u} \leq s_{o, \tau, u} \leq S^{max}_{o, \tau, u} \quad \forall o, \tau \in \Tau^{-1}, u \in \Psi^{G, H} \\
-&f_{o, \tau, \ell} = B_\ell (\delta_{o, \tau, s(\ell)} - \delta_{o, \tau, r(\ell)}) \quad \forall o, \tau, \ell \in \Psi^L \\
-&F_{o, \tau, \ell}^{min} \leq f_{o, \tau, \ell} \leq F_{o, \tau, \ell}^{max} \quad \forall o, \tau, \ell \in \Psi^L \\
-&F_{o, \tau, \ell}^{min} y_{t(\tau), \ell}^* \leq f_{o, \tau, \ell} \leq F_{o, \tau, \ell}^{max} y_{t(\tau), \ell}^* \quad \forall o, \tau, \ell \in \Psi^{L+} \\
-&-\pi \leq \delta_{o, \tau, n} \leq \pi \quad \forall o, \tau, n \\
-&\delta_{o, \tau, 0} = 0 \quad \forall o, \tau \}
+&\label{feas_balance} \sum\limits_{\ell | r(\ell) = n} f_{o, \tau, \ell} = d_{o, \tau, n}^* \quad \forall o, \tau, n\\
+&\label{feas_availability1}0 \leq g_{o, \tau, u} \leq A_{o, \tau, u} G_{o, \tau, u}^{max} \quad \forall o, \tau, u \in \Psi_n^G \\
+&\label{feas_availability2}0 \leq g_{o, \tau, u} \leq A_{o, \tau, u} x_{t(\tau), u}^* \quad \forall o, \tau, u \in \Psi_n^{G+} \\
+&\label{feas_ramp1}G^{ramp,min}_{o, \tau, u} \leq g_{o, \tau + 1, u} - g_{o, \tau, u} \quad \forall o, \tau \in \Tau^{ramp}, u \\
+&\label{feas_ramp2}g_{o, \tau + 1, u} - g_{o, \tau, u} \leq G^{ramp,max}_{o, \tau, u} \quad \forall o, \tau \in \Tau^{ramp}, u \\
+&\label{feas_storage1}s_{o, \tau, u} \geq 0 \quad \forall o, \tau, u \in \Psi^{G, H} \\
+&\label{feas_storage2}s_{o, \tau, u} = S^0_{o, \tau, u} \quad \forall o, \tau \in \Tau^0, u \in \Psi^{G, H} \\
+&\label{feas_storage3}s_{o, \tau + 1, u} = s_{o, \tau, u} - g_{o, \tau, u} + I_{o, \tau, u} \, \, \forall o, \tau \in \Tau^{ramp}, u \in \Psi^{G, H} \\
+&\label{feas_storage4}S^{min}_{o, \tau, u} \leq s_{o, \tau, u} \leq S^{max}_{o, \tau, u} \quad \forall o, \tau \in \Tau^{-1}, u \in \Psi^{G, H} \\
+&\label{feas_flow_ac}f_{o, \tau, \ell} = B_\ell (\delta_{o, \tau, s(\ell)} - \delta_{o, \tau, r(\ell)}) \quad \forall o, \tau, \ell \in \Psi^L \\
+&\label{feas_flow_max}F_{o, \tau, \ell}^{min} \leq f_{o, \tau, \ell} \leq F_{o, \tau, \ell}^{max} \quad \forall o, \tau, \ell \in \Psi^L \\
+&\label{feas_flow_candidate_max}F_{o, \tau, \ell}^{min} y_{t(\tau), \ell}^* \leq f_{o, \tau, \ell} \leq F_{o, \tau, \ell}^{max} y_{t(\tau), \ell}^* \quad \forall o, \tau, \ell \in \Psi^{L+} \\
+&\label{feas_voltage_angle}-\pi \leq \delta_{o, \tau, n} \leq \pi \quad \forall o, \tau, n \\
+&\label{feas_voltage_angle_ref}\delta_{o, \tau, 0} = 0 \quad \forall o, \tau \} \\
+&\label{feas_emission_ub}\sum\limits_{o} \sum\limits_{\tau \in t} \sum\limits_{u} W_o G^{emission}_{o, \tau, u} g_{o, \tau, u} \leq E_{t} \quad \forall t
 \end{align}
-where the notation $n(u)$ indicates the node in which unit $u$ is located and $t(\tau)$ the master problem time step $t$ that the subproblem time step $\tau$ is assigned to. Also, the notation $\tau \in t$ indicates subproblem time steps $\tau$ within a master problem time step $t$. The definition of the two different time scales and the related sets are shown in Figure \ref{fig_time_scales}. Hydro power is modeled following \cite{Debia} by assuming that each hydro power unit has one reservoir that can act as a storage. Finally, we assume that all candidate transmission lines are direct current (DC) lines. This assumption reduces solution times because alternating current (AC) candidate lines would lead to constraints with a product of a binary and a continuous variable, which we would need to linearize.
+where the notation $n(u)$ indicates the node in which unit $u$ is located and $t(\tau)$ the upper-level time step $t$ that the lower-level time step $\tau$ is assigned to. Also, the notation $\tau \in t$ indicates lower-level time steps $\tau$ within a upper-level time step $t$. The definition of the two different time scales and the related sets are shown in Figure \ref{fig_time_scales}.
+
+Eqs. (\ref{feas_balance})-(\ref{feas_voltage_angle_ref}) represent the power system operations. Eq. (\ref{feas_balance}) requires that demand equals generation and exchange at each node. Eqs. (\ref{feas_availability1}) and (\ref{feas_availability2}) impose that generation is non-negative but less than or equal to a quantity given by the product of availability ($A_{o, \tau, u}$) and maximum capacity of an existing unit ($G_{o, \tau, u}^{max}$) or the built capacity of a candidate unit $x_{t(\tau), u}^*$, respectively. Moreover, generation is limited by ramping constraints (\ref{feas_ramp1}) and (\ref{feas_ramp2}).
+
+Following \cite{Debia}, we assume that each hydro power unit has one reservoir that can act as a storage. Eq. (\ref{feas_storage1}) imposes that storages are always non-negative. Eq. (\ref{feas_storage2}) sets the initial storage level at the first lower-level time step $\tau$ within each upper-level time step $t$. Eq. (\ref{feas_storage3}) requires that the storage level at the following time step $\tau$ is given by the difference of hydro power generation and inflows $I_{o, \tau, u}$. Finally, Eq. (\ref{feas_storage4}) requires that the storage level at the last lower-level time step $\tau$ of each upper-level time step $t$ is within desired levels $S^{min}_{o, \tau, u}$ and $S^{max}_{o, \tau, u}$. Otherwise, the storage could be depleted, which would cause problems later on.
+
+The transmission network is represented by active current (AC) and direct current (DC) circuits in Eqs. (\ref{feas_flow_ac})-(\ref{feas_voltage_angle_ref}). For AC lines, the transmission flow is determined by Eq. (\ref{feas_flow_ac}). However, flows in existing and candidate transmission lines must be within the capacities of the lines as given by Eqs. (\ref{feas_flow_max}) and (\ref{feas_flow_candidate_max}), respectively. Related to the AC circuit, the voltage angles at each node and a reference voltage angle are given by (\ref{feas_voltage_angle}) and (\ref{feas_voltage_angle_ref}), respectively.
+
+Finally, Eq. (\ref{feas_emission_ub}) determines the upper bound for \COtwo emission at each upper-level time step $t$.
+
+Finally, we assume that all candidate transmission lines are direct current (DC) lines. This assumption reduces solution times because alternating current (AC) candidate lines would lead to constraints with a product of a binary and a continuous variable, which we would need to linearize.
 
 \begin{figure}[htpb]
 	%\centering
@@ -355,7 +380,7 @@ With $x_{t, u}^*, \forall t, u \myin \Psi^{G+}$ and $y_{t, \ell}^*, \forall t, 
 &\bar{\mu}_{o, \tau, \ell} + \underline{\mu}_{o, \tau, \ell} = 0 \quad \forall o, \tau, \ell \\
 &-\sum\limits_{\ell \in \Psi^{L,AC} | s(\ell) = n} B_\ell \mu_{o, \tau, \ell} + \sum\limits_{\ell \in \Psi^{L,AC} | r(\ell) = n} B_\ell \mu_{o, \tau, \ell} - \nonumber \\
 &\bar{\mu}^{va}_{o, \tau, n} + \underline{\mu}^{va}_{o, \tau, n} + \mathbbm{1}_{n = 0} \mu^{ref}_{o, \tau} = 0 \quad \forall o, \tau, n \\
-&\label{sub_last}\text{Eqs. } (\ref{uncertainty_set}),
+&\label{sub_last}\text{Eqs. } (\ref{uncertainty_set1})-(\ref{uncertainty_set2}),
 \end{align}
 where $\mathbbm{1}_{cond}$ equals 1 if $cond$ is true and otherwise 0.
 
