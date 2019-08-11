@@ -13,7 +13,7 @@
 \usepackage{tikz}
 \usepackage{tikzscale}
 \usepackage{pgf}
-\usetikzlibrary{calc,decorations.pathreplacing,positioning,shadows,backgrounds,arrows.meta}
+\usetikzlibrary{calc,decorations.pathreplacing,positioning,shadows,backgrounds,arrows.meta,shapes.geometric}
 \DeclareUnicodeCharacter{20AC}{\EUR{}}
 
 \SetKwInOut{Initialization}{Initialization}
@@ -88,19 +88,35 @@ Given this context, the contributions of this paper are:
 \end{enumerate}
 
 % Paper organization
-The remaining of this paper is organized as follows. Section \ref{section_problem_description} presents the mathematical formulation of our SARO problem. Section \ref{section_case_study} presents a realistic case study and its results. Finally, Section \ref{section_conclusions} provides conclucions.
+The remaining of this paper is organized as follows. Section \ref{section_problem} presents the mathematical formulation of our SARO problem. Section \ref{section_case_study} presents a realistic case study and its results. Finally, Section \ref{section_conclusions} provides conclucions.
 
 \section{Problem description}
-\label{section_problem_description}
+\label{section_problem}
 
 % points:
 % - time scales
 % - emissions decrease
 % - robust optimization and stochastic programming reasoning for uncertainty modelling
 
-At the upper level of our SARO problem, we consider a central planner that makes generation and transmission expansion decisions in a long-term horizon consisting of time steps $t$ that can be interpreted as years, for example. While making the expansion plan, the central planner considers the lower level of the SARO problem in which a market operator minimizes power system operation costs in each upper-level time step $t$ under worst case demand and multiple operating conditions $o$ that represent uncertainty in generation cost parameters and VREs generation, for example. In order to capture the variability in demand and VRE generation, we model power system operations within each upper-level time step $t$ using a number of lower-level time steps $\tau$ that can be interpreted as hours, for example. In addition to attaining minimum cost operations, the central planner is required to consider an upper bound for emissions in each upper-level time step.
+% \begin{figure}[htpb]
+% \centering
+% \begin{tikzpicture}[square/.style={regular polygon,regular polygon sides=4}]
+% 	\node (upper) [rectangle,draw,align=center,text width=5cm,minimum height=2cm] {\textbf{1st level} \\ Least cost generation and transmission expansion};
 
-A combination of robust optimization and stochastic programming is used for modeling uncertainty when making the expansion plan. Following \cite{Baringo2018}, we use robust optimization to identify worst case realization for long-term uncertainties such as demand. On the other hand, stochastic programming is used to model short-term uncertainties such as VREs generation.
+% 	\node (middle) [rectangle,draw,align=center,text width=5cm,minimum height=2cm,below=of upper] {\textbf{2nd level} \\ Largest operating cost w.r.t. uncertain parameters};
+
+% 	\node (lower) [rectangle,draw,align=center,text width=5cm,minimum height=2cm,below=of middle] {\textbf{3rd level} \\ Least cost operations};
+
+% 	\draw (upper) -- (middle) -- (lower);
+% \end{tikzpicture}
+% \caption{Tri-level structure}
+% \label{fig_problem_structure}
+% \end{figure}
+
+At the first level of our tri-level SARO G\&TEP problem, we consider a central planner that makes a generation and transmission expansion plan in a long-term horizon consisting of time steps $t$ that we be interpret as years. While doing this, the central planner considers the 2nd level
+that chooses worst-case demand so as to maximize the power system operation costs. Also, the central planner considers the 3rd level in which a market operator minimizes the operation costs in multiple operating conditions $o$ for each each 1st level time step $t$ given the worst-case demand determined by the 2nd level. In order to capture the demand and VRE generation profile, we model power system operations within each upper-level time step $t$ using a number of lower-level time steps $\tau$ that we interpret as hours. In addition to attaining minimum cost operations, the driver for the expansion plan is an upper bound for emissions in each 1st level time step.
+
+A combination of RO and stochastic programming is used for modeling uncertainty when making the expansion plan. Following \cite{Baringo2018}, we use RO at the 2nd level to identify the worst-case realization for demand. On the other hand, stochastic programming is used at the 3rd level to model the variability of VRES generation, transmission capacities and generation costs among others.
 
 \subsection{Notation}
 
@@ -189,10 +205,9 @@ A combination of robust optimization and stochastic programming is used for mode
 	$\theta$ 	& auxiliary variable for the column-and-constraint master problem objective function (€)
 \end{supertabular}
 
-\subsection{Stochastic adaptive robust optimization problem}
+\subsection{Model formulation}
 
-We use $\Omega$ and $\Xi$ to denote the uncertainty and feasibility sets, respectively. The stochastic adaptive robust optimization problem is
-
+In the following, $\Omega$ denotes the uncertainty set from which the worst-case demand is selected and $\Xi$ denotes the feasibility set for the operation decisions once the 1st and 2nd level decisions have been made. The mathematical formulation for our SARO G\&TEP problem is
 \begin{align}
 &\underset{\Phi^{L1}}{\text{min}} \, P \sum\limits_{t} R^{-t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell} \right] + \nonumber \\
 &\label{saro_obj}\underset{\Phi^{L2} \in \Omega}{\text{max}} \quad \underset{\Phi^{L3} \in \Xi}{\text{min}} \sum\limits_o W_o \sum\limits_{\tau} R^{-t(\tau)} \sum\limits_{u} C^g_{u} g_{o, \tau, u} \\
@@ -203,16 +218,16 @@ We use $\Omega$ and $\Xi$ to denote the uncertainty and feasibility sets, respec
 \end{align}
 where \( \Phi^{L1} \myeq \{ \hat{x}_{t, u}, x_{t, u}, \forall u \myin \Psi^{G+}; \hat{y}_{t, \ell}, y_{t, \ell}, \forall \ell \myin \Psi^{L+} \}, \forall t \), \( \Phi^{L2} \myeq \{ d_{o, \tau, n}, \forall o, \tau; w_{n} \}, \forall n \), and \( \Phi^{L3} \myeq \{ g_{o, \tau, u}, \forall u; s_{o, \tau, u}, \forall u \myin \Psi^{G, H}; f_{o, \tau, \ell}, \forall \ell; \delta_{o, \tau, n}, \forall n \}, \forall o, \tau \).
 
-In the objective function ()\ref{saro_obj}), the first minimization problem represents the annualized generation and transmission expansion costs and the max-min problem represents minimal operation costs under the worst case realization of demand and a set of operating conditions for other uncertain parameters. The constraints (\ref{master_constraint_first}) and (\ref{master_constraint_second}) define the available new generation capacity and transmission lines at the upper-level time step $t$ as the sum of investments up to $t$. The constraint (\ref{master_constraint_last}) imposes upper bounds for the capacities of the new generation units.
+In the objective function (\ref{saro_obj}), the first minimization problem represents the generation and transmission expansion costs (1st level) and the maximization problem represents the selection of the worst-case demand (2nd level) for the second minimization problem of attaining the least cost power system operations (3rd level). The parameter $P$ is used to make the expansion and operation costs comparable. The constraints (\ref{master_constraint_first}) and (\ref{master_constraint_second}) define the capacities of candidate units and transmission lines that are available at each 1st level time step $t$, respectively. The constraints (\ref{master_constraint_last}) define maximum investments in the new generation units.
 
 Following \cite{Minguez} and \cite{Baringo2018}, the uncertainty set $\Omega$ is given by
 \begin{align}
 \label{uncertainty_set1}\{ &d_{o, \tau, n} = D^{-t(\tau)} (\tilde{D}_{o, \tau, n} + w_n \hat{D}_{o, \tau, n}) & \forall o, \tau, n \\
 &\label{uncertainty_set2}\sum\limits_n w_{n} \leq \Lambda^w \}.
 \end{align}
-Eq. (\ref{uncertainty_set1}) defines that demand is equal to the sum of nominal demand ($\tilde{D}_{o, \tau, n}$) and a possible demand increase ($\hat{D}_{o, \tau, n}$) multiplied by demand growth factor ($D$) that accrues at each upper-level time step. The demand increase is selected using binary variables $w_n$ to cause the maximum operation costs. Eq. (\ref{uncertainty_set2}) sets an uncertainty budget to how many demand increases the model can do.
+Eq. (\ref{uncertainty_set1}) defines that demand is equal to the sum of nominal demand ($\tilde{D}_{o, \tau, n}$) and a possible demand increase ($\hat{D}_{o, \tau, n}$) multiplied by demand growth factor ($D$) that compounds at each 1st level time step $t$. The demand increase is selected using binary variables $w_n$ in an attempt to maximize the operation costs. Eq. (\ref{uncertainty_set2}) sets an uncertainty budget on the number of demand increases the model can activate.
 
-Given the optimal values \( x_{t, u}^*, \forall t, u \myin \Psi^{G+} \), \( y_{t, \ell}^*, \forall t, \ell \myin \Psi^{L+} \), and \( d_{o, \tau, n}^*, \forall o, \tau, n \), the feasibility set \( \Xi(g_{o, \tau, u}, s_{o, \tau, u}, f_{o, \tau, \ell}, \delta_{o, \tau, n}) \) is
+For formulating the power system operations in Eqs. (\ref{feas_balance})-(\ref{feas_voltage_angle_ref}), we define $n(u)$ as the node in which unit $u$ is located. Also, the notation $\tau \in t$ indicates the 3rd level time steps $\tau$ within a 1st level time step $t$, and an inverse mapping $t(\tau)$ gives the 1st level time step $t$ that the 3rd level time step $\tau$ is belongs to. The definition of the two different time scales and the related sets are shown in Figure \ref{fig_time_scales}. Consequently, given the optimal values \( x_{t, u}^*, \forall t, u \myin \Psi^{G+} \), \( y_{t, \ell}^*, \forall t, \ell \myin \Psi^{L+} \), and \( d_{o, \tau, n}^*, \forall o, \tau, n \), the feasibility set \( \Xi(g_{o, \tau, u}, s_{o, \tau, u}, f_{o, \tau, \ell}, \delta_{o, \tau, n}) \) is
 \begin{align}
 \{ &\sum\limits_{u | n(u) = n} g_{o, \tau, u} - \sum\limits_{\ell | s(\ell) = n} f_{o, \tau, \ell} + \nonumber \\
 &\label{feas_balance} \sum\limits_{\ell | r(\ell) = n} f_{o, \tau, \ell} = d_{o, \tau, n}^* \quad \forall o, \tau, n\\
@@ -231,17 +246,16 @@ Given the optimal values \( x_{t, u}^*, \forall t, u \myin \Psi^{G+} \), \( y_{t
 &\label{feas_voltage_angle_ref}\delta_{o, \tau, 0} = 0 \quad \forall o, \tau \} \\
 &\label{feas_emission_ub}\sum\limits_{o} \sum\limits_{\tau \in t} \sum\limits_{u} W_o G^{emission}_{o, \tau, u} g_{o, \tau, u} \leq E_{t} \quad \forall t
 \end{align}
-where the notation $n(u)$ indicates the node in which unit $u$ is located and $t(\tau)$ the upper-level time step $t$ that the lower-level time step $\tau$ is assigned to. Also, the notation $\tau \in t$ indicates lower-level time steps $\tau$ within a upper-level time step $t$. The definition of the two different time scales and the related sets are shown in Figure \ref{fig_time_scales}.
 
-Eqs. (\ref{feas_balance})-(\ref{feas_voltage_angle_ref}) represent the power system operations. Eq. (\ref{feas_balance}) requires that demand equals generation and exchange at each node. Eqs. (\ref{feas_availability1}) and (\ref{feas_availability2}) impose that generation is non-negative but less than or equal to a quantity given by the product of availability ($A_{o, \tau, u}$) and maximum capacity of an existing unit ($G_{o, \tau, u}^{max}$) or the built capacity of a candidate unit $x_{t(\tau), u}^*$, respectively. Moreover, generation is limited by ramping constraints (\ref{feas_ramp1}) and (\ref{feas_ramp2}).
+Eq. (\ref{feas_balance}) requires that (possibly worst-case) demand equals generation and exchange at each node. Eqs. (\ref{feas_availability1}) and (\ref{feas_availability2}) impose that the generation of each unit is non-negative but less than or equal to the product of the unit's availability ($A_{o, \tau, u}$) and maximum capacity of an existing unit ($G_{o, \tau, u}^{max}$) or the built capacity of a candidate unit $x_{t(\tau), u}^*$, respectively. Moreover, generation is limited by ramping constraints (\ref{feas_ramp1}) and (\ref{feas_ramp2}).
 
-Following \cite{Debia}, we assume that each hydro power unit has one reservoir that can act as a storage. Eq. (\ref{feas_storage1}) imposes that storages are always non-negative. Eq. (\ref{feas_storage2}) sets the initial storage level at the first lower-level time step $\tau$ within each upper-level time step $t$. Eq. (\ref{feas_storage3}) requires that the storage level at the following time step $\tau$ is given by the difference of hydro power generation and inflows $I_{o, \tau, u}$. Finally, Eq. (\ref{feas_storage4}) requires that the storage level at the last lower-level time step $\tau$ of each upper-level time step $t$ is within desired levels $S^{min}_{o, \tau, u}$ and $S^{max}_{o, \tau, u}$. Otherwise, the storage could be depleted, which would cause problems later on.
+Following \cite{Debia}, we assume that each hydro power unit has one reservoir that can act as a storage. Eq. (\ref{feas_storage1}) imposes that storage levels are non-negative. Eq. (\ref{feas_storage2}) sets the initial storage level at the first 3rd level time step $\tau$ within each 1st level time step $t$. Eq. (\ref{feas_storage3}) defines the storage level at the following time step $\tau + 1$ as the current storage plus the difference of hydro power generation ($g_{o, \tau, u}, u \in \Psi^{G, H}$) and inflows ($I_{o, \tau, u}$) at $\tau$. To avoid possible storage depletion, Eq. (\ref{feas_storage4}) requires that the storage level at the last 3rd level time step $\tau$ within each 1st level time step $t$ is within desired levels $S^{min}_{o, \tau, u}$ and $S^{max}_{o, \tau, u}$.
 
-The transmission network is represented by active current (AC) and direct current (DC) circuits in Eqs. (\ref{feas_flow_ac})-(\ref{feas_voltage_angle_ref}). For AC lines, the transmission flow is determined by Eq. (\ref{feas_flow_ac}). However, flows in existing and candidate transmission lines must be within the capacities of the lines as given by Eqs. (\ref{feas_flow_max}) and (\ref{feas_flow_candidate_max}), respectively. Related to the AC circuit, the voltage angles at each node and a reference voltage angle are given by (\ref{feas_voltage_angle}) and (\ref{feas_voltage_angle_ref}), respectively.
+The transmission network is represented by active current (AC) and direct current (DC) circuits in Eqs. (\ref{feas_flow_ac})-(\ref{feas_voltage_angle_ref}). For AC lines, the transmission flow is determined by Eq. (\ref{feas_flow_ac}). However, flows in existing and candidate transmission lines must be within the capacities of the lines as given by Eqs. (\ref{feas_flow_max}) and (\ref{feas_flow_candidate_max}), respectively. Related to the AC circuit, the voltage angles at each node and a reference voltage angle are given by Eqs. (\ref{feas_voltage_angle}) and (\ref{feas_voltage_angle_ref}), respectively.
 
-Finally, Eq. (\ref{feas_emission_ub}) determines the upper bound for \COtwo emission at each upper-level time step $t$.
+Finally, Eq. (\ref{feas_emission_ub}) determines the upper bound for GHG emissions at each 1st level time step $t$. The framework allows adding other criteria such as a lower bound found renewable power generation.
 
-Finally, we assume that all candidate transmission lines are direct current (DC) lines. This assumption reduces solution times because alternating current (AC) candidate lines would lead to constraints with a product of a binary and a continuous variable, which we would need to linearize.
+In the above formulation, we have assumed that all candidate transmission lines are DC lines. This is because we focus on emission reduction and VRES integration using cross-border transmission, which is typically implemented via high-voltage DC (HVDC) lines to minimize heat and other losses. In addition, this assumption reduces solution times because AC candidate lines would lead to constraints with a product of a binary and a continuous variable, which we would need to linearize.
 
 \begin{figure}[htpb]
 	%\centering
@@ -276,9 +290,9 @@ Finally, we assume that all candidate transmission lines are direct current (DC)
 	\label{fig_time_scales}
 \end{figure}
 
-\subsection{Overview of the solution algorithm}
+\section{Solution}
 
-The problem (\ref{saro_obj})-(\ref{master_constraint_last}) is solved using column-and-constraint (CC) algorithm in which solving the first minimization problem of (\ref{saro_obj}) and solving the max-min problem of (\ref{saro_obj}) alternates. These two problems are called CC master problem (Eqs. (\ref{master_obj})-(\ref{master_last})) and CC subproblem (Eqs. (\ref{sub_obj})-(\ref{sub_last})), respectively. The alternation terminates when the total costs computed from the two problems match. The solution algorithm is described in detail in Algorithm \ref{alg_algorithm}.
+Following \cite{Minguez}, the problem (\ref{saro_obj})-(\ref{master_constraint_last}) is solved using column-and-constraint (CC) algorithm in which solving the first minimization problem of (\ref{saro_obj}) and solving the max-min problem of (\ref{saro_obj}) alternates. These two problems are called CC master problem and CC subproblem, respectively. The alternation terminates when the total costs computed from the two problems match. The formulations for CC master problem and subproblem are given in the following subsections (Eqs. (\ref{master_obj})-(\ref{master_last}) and Eqs. (\ref{sub_obj})-(\ref{sub_last}), respectively) and solution algorithm is described in detail in Algorithm \ref{alg_algorithm}.
 
 \begin{algorithm}
 \SetAlgoLined
@@ -471,6 +485,7 @@ Figure \ref{fig_emissions_trajectory} shows the evolution of \COtwo emissions to
 \section{Conclusions}
 \label{section_conclusions}
 
+foobar
 
 \bibliographystyle{IEEEtran}
 \bibliography{IEEEabrv,references}

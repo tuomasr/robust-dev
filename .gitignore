@@ -4,7 +4,7 @@
 *.aux
 *.bbl
 *.blg
-*.pdf
+robust*.pdf
 *.synctex.gz
 *.pickle
 *.png
