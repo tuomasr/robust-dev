@@ -4,11 +4,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 import pickle
 
-import numpy as np
 import matplotlib.pyplot as plt
-
+import numpy as np
 
 from common_data import (
     real_node_names,
@@ -86,7 +86,9 @@ def stacked_bar(
         plt.legend(handles, labels, loc="upper left")
 
 
-def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_algorithm):
+def create_investment_plots(
+    xhat, yhat, master_problem_algorithm, subproblem_algorithm, output_dir
+):
     """Create plots for transmission and generation investments."""
     # Pickling is for debugging... ignore.
     algo_choice = (master_problem_algorithm, subproblem_algorithm)
@@ -163,10 +165,11 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
             colors=colors,
             legend_labels=legend_labels,
         )
-        plt.savefig(
-            "generation_investment_%s_%s.png"
-            % (master_problem_algorithm, subproblem_algorithm)
+        filename = "generation_investment_%s_%s.png" % (
+            master_problem_algorithm,
+            subproblem_algorithm,
         )
+        plt.savefig(os.path.join(output_dir, filename))
     else:
         print("No generation investments. Nothing to plot.")
 
@@ -214,37 +217,73 @@ def create_investment_plots(xhat, yhat, master_problem_algorithm, subproblem_alg
             category_labels,
             y_label="Cumulative new transmission line capacity (MW)",
         )
-        plt.savefig(
-            "transmission_investment_%s_%s.png"
-            % (master_problem_algorithm, subproblem_algorithm)
+        filename = "transmission_investment_%s_%s.png" % (
+            master_problem_algorithm,
+            subproblem_algorithm,
         )
+        plt.savefig(os.path.join(output_dir, filename))
     else:
         print("No transmission investments. Nothing to plot.")
 
 
 def create_emission_plots(
-    emissions, emission_prices, master_problem_algorithm, subproblem_algorithm
+    emissions,
+    emission_prices,
+    master_problem_algorithm,
+    subproblem_algorithm,
+    output_dir,
 ):
     """Create plots for emission prices and for emission reductions."""
-    plt.figure()
-    plt.plot(years, emissions)
-    plt.xlabel("master problem time step")
-    plt.ylabel("emissions (tonne)")
-    plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-    plt.savefig(
-        "emissions_trajectory_%s_%s.png"
-        % (master_problem_algorithm, subproblem_algorithm)
+    # plt.figure()
+    # plt.plot(years, emissions)
+    # plt.xlabel("master problem time step")
+    # plt.ylabel("emissions (tonne)")
+    # plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+    # plt.savefig(
+    #     "emissions_trajectory_%s_%s.png"
+    #     % (master_problem_algorithm, subproblem_algorithm)
+    # )
+
+    # # Emission prices plot.
+    # plt.figure()
+    # plt.plot(years, emission_prices)
+    # plt.xlabel("master problem time step")
+    # plt.ylabel("emissions price (EUR/tonne)")
+    # plt.savefig(
+    #     "emissions_prices_trajectory_%s_%s.png"
+    #     % (master_problem_algorithm, subproblem_algorithm)
+    # )
+
+    fig, ax1 = plt.subplots()
+
+    color = "b"
+    ax1.set_xlabel("master problem time step")
+    ax1.set_ylabel("emissions (tonne)", color=color)
+    line1, = ax1.plot(years, emissions, "b-", label="emissions (LHS)")
+    ax1.tick_params(axis="y", labelcolor=color)
+
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+    color = "r"
+    ax2.set_ylabel(
+        "emission price (EUR/tonne)", color=color
+    )  # we already handled the x-label with ax1
+    line2, = ax2.plot(years, emission_prices, "r--", label="emission price (RHS)")
+    ax2.tick_params(axis="y", labelcolor=color)
+
+    fig.legend(
+        (line1, line2),
+        ("emission (LHS)", "emission price (RHS)"),
+        loc="center",
+        bbox_to_anchor=(0.5, 0.075),
     )
 
-    # Emission prices plot.
-    plt.figure()
-    plt.plot(years, emission_prices)
-    plt.xlabel("master problem time step")
-    plt.ylabel("emissions price (EUR/tonne)")
-    plt.savefig(
-        "emissions_prices_trajectory_%s_%s.png"
-        % (master_problem_algorithm, subproblem_algorithm)
-    )
+    fig.tight_layout(
+        rect=[0, 0.15, 1, 1]
+    )  # otherwise the right y-label is slightly clipped
+
+    filename = "emissions_%s_%s.png" % (master_problem_algorithm, subproblem_algorithm)
+    plt.savefig(os.path.join(output_dir, filename))
 
 
 def test():
@@ -260,4 +299,19 @@ def test():
     create_investment_plots(xhat, yhat, algo_choice[0], algo_choice[1])
 
 
-# test()
+def test2():
+    """For debugging the plotting functions."""
+    master_problem_algorithm, subproblem_algorithm = "milp_dc", "miqp_dc"
+
+    with open("emission_data.pickle", "rb") as f:
+        emission_data = pickle.load(f)
+
+    emissions = emission_data["emissions"]
+    emission_prices = emission_data["emission_prices"]
+
+    create_emission_plots(
+        emissions, emission_prices, master_problem_algorithm, subproblem_algorithm
+    )
+
+
+# test2()

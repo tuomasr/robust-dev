@@ -292,7 +292,7 @@ In the above formulation, we have assumed that all candidate transmission lines 
 
 \section{Solution}
 
-Following \cite{Minguez}, the problem (\ref{saro_obj})-(\ref{master_constraint_last}) is solved using column-and-constraint (CC) algorithm in which solving the first minimization problem of (\ref{saro_obj}) and solving the max-min problem of (\ref{saro_obj}) alternates. These two problems are called CC master problem and CC subproblem, respectively. The alternation terminates when the total costs computed from the two problems match. The formulations for CC master problem and subproblem are given in the following subsections (Eqs. (\ref{master_obj})-(\ref{master_last}) and Eqs. (\ref{sub_obj})-(\ref{sub_last}), respectively) and solution algorithm is described in detail in Algorithm \ref{alg_algorithm}.
+Following \cite{Minguez}, the problem (\ref{saro_obj})-(\ref{master_constraint_last}) is solved using column-and-constraint (CC) algorithm in which solving the first minimization problem of (\ref{saro_obj}) and solving the max-min problem of (\ref{saro_obj}) alternates. These two problems are called CC master problem and CC subproblem, respectively. The alternation terminates when the total costs computed from the two problems match. The formulations for CC master problem and subproblem are given in the following subsections (Eqs. (\ref{cc_master_obj})-(\ref{cc_master_last}) and Eqs. (\ref{sub_obj})-(\ref{sub_last}), respectively) and solution algorithm is described in detail in Algorithm \ref{alg_algorithm}.
 
 \begin{algorithm}
 \SetAlgoLined
@@ -308,7 +308,7 @@ $\nu \leftarrow 0$ \;
 $d_{o, \tau, n, \nu} \leftarrow \tilde{D}_{o, \tau, n} \quad \forall o, \tau, n$ \;
 \While{$(UB - LB) / UB \leq \epsilon$}{
 	\tcp*[l]{Solve the CC master problem}
-		Obtain \( x_{t, u}^*, \hat{x}_{t, u}^*, \forall t, u \myin \Psi^{G+}; y_{t, \ell}^*, \hat{y}_{t, \ell}^*, \forall t, \ell \myin \Psi^{L+} \) by solving CC master problem in Eqs. (\ref{master_obj})-(\ref{master_last}) using \( d_{o, \tau, n, \nu'}, \forall o, \tau, n, \nu' \leq \nu \). $LB$ is updated to the objective value of the master problem. \;
+		Obtain \( x_{t, u}^*, \hat{x}_{t, u}^*, \forall t, u \myin \Psi^{G+}; y_{t, \ell}^*, \hat{y}_{t, \ell}^*, \forall t, \ell \myin \Psi^{L+} \) by solving CC master problem in Eqs. (\ref{cc_master_obj})-(\ref{cc_master_last}) using \( d_{o, \tau, n, \nu'}, \forall o, \tau, n, \nu' \leq \nu \). $LB$ is updated to the objective value of the master problem. \;
 
     \;
 
@@ -329,27 +329,27 @@ $d_{o, \tau, n, \nu} \leftarrow \tilde{D}_{o, \tau, n} \quad \forall o, \tau, n$
 At iteration $\nu$, we have \( \Omega^{M} \myeq \{ g_{o, \tau, u, \nu'}, \forall u; s_{o, \tau, u, \nu'}, \forall u \in \Psi^{G, H}; f_{o, \tau, \ell, \nu'}, \forall \ell; \delta_{o, \tau, n, \nu'}, \forall n \}, \forall o, \tau, \nu' \myleq \nu \). Given \( d_{\tau, n, \nu'}^*, \forall \tau, n, \nu' \myleq \nu \) as input data obtained from all the previous solutions of the subproblem, the master problem at iteration $\nu$ is
 
 \begin{align}
-&\label{master_obj} \underset{\Phi^{L1}, \Omega^{M}, \theta}{\text{min}} \, P \sum\limits_{t} R^{-t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell} \right] + \theta \\
+&\label{cc_master_obj} \underset{\Phi^{L1}, \Omega^{M}, \theta}{\text{min}} \, P \sum\limits_{t} R^{-t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell} \right] + \theta \\
 &\text{subject to} \nonumber \\
 &\text{Eqs. } (\ref{master_constraint_first}) - (\ref{master_constraint_last}) \\
-&\theta \geq \sum\limits_o W_o \sum\limits_{\tau} R^{-t(\tau)} \sum\limits_{u} C_{u}^g g_{o, \tau, u, \nu'} \quad \forall \nu' \leq \nu \\
+&\label{cc_master_constraint1}\theta \geq \sum\limits_o W_o \sum\limits_{\tau} R^{-t(\tau)} \sum\limits_{u} C_{u}^g g_{o, \tau, u, \nu'} \quad \forall \nu' \leq \nu \\
 &\sum\limits_{u | n(u) = n} g_{o, \tau, u, \nu'} - \sum\limits_{\ell | s(\ell) = n} f_{o, \tau, \ell, \nu'} + \nonumber \\
 &\sum\limits_{\ell | r(\ell) = n} f_{o, \tau, \ell, \nu'} = d_{\tau, n, \nu'}^* \quad \forall o, \tau, n, \nu' \leq \nu \\
 &0 \leq g_{o, \tau, u, \nu'} \leq A_{o, \tau, u} G_{o, \tau, u}^{max} \quad \forall o, \tau, u \in \Psi_n^G, \nu' \leq \nu \\
 &0 \leq g_{o, \tau, u, \nu'} \leq A_{o, \tau, u} x_{t(\tau), u} \quad \forall o, \tau, u \in \Psi_n^{G+}, \nu' \leq \nu \\
 &G^{ramp,min}_{o, \tau, u} \leq g_{o, \tau + 1, u, \nu'} - g_{o, \tau, u, \nu'} \quad \forall o, \tau \in \Tau^{ramp}, u, \nu' \leq \nu \\
 &g_{o, \tau + 1, u, \nu'} - g_{o, \tau, u, \nu'} \leq G^{ramp,max}_{o, \tau, u} \quad \forall o, \tau \in \Tau^{ramp}, u, \nu' \leq \nu \\
-&\sum\limits_{o} \sum\limits_{\tau \in t} \sum\limits_{u} W_o G^{emission}_{o, \tau, u} g_{o, \tau, u, \nu'}  \leq E_{t} \quad \forall t, \nu' \leq \nu \\
+&\label{cc_emission_ub}\sum\limits_{o} \sum\limits_{\tau \in t} \sum\limits_{u} W_o G^{emission}_{o, \tau, u} g_{o, \tau, u, \nu'}  \leq E_{t} \quad \forall t, \nu' \leq \nu \\
 &s_{o, \tau, u, \nu'} \geq 0 \quad \forall o, \tau, u \in \Psi^{G, H}, \nu' \leq \nu \\
 &s_{o, \tau, u, \nu'} = S^0_{o, \tau, u} \quad \forall o, \tau \in \Tau^0, u \in \Psi^{G, H}, \nu' \leq \nu \\
 &s_{o, \tau + 1, u, \nu'} = s_{o, \tau, u, \nu'} - g_{o, \tau, u, \nu'} + \nonumber \\
 &\quad \quad \quad \quad \quad \, \, \, I_{o, \tau, u} \, \, \forall o, \tau \in \Tau^{ramp}, u \in \Psi^{G, H}, \nu' \leq \nu \\
-&S^{min}_{o, \tau, u} \leq s_{o, \tau, u, \nu'} \leq S^{, max}_{o, \tau, u} \quad \forall o, \tau \in \Tau^{-1}, u \in \Psi^{G, H}, \nu' \leq \nu \\
+&S^{min}_{o, \tau, u} \leq s_{o, \tau, u, \nu'} \leq S^{max}_{o, \tau, u} \quad \forall o, \tau \in \Tau^{-1}, u \in \Psi^{G, H}, \nu' \leq \nu \\
 &f_{o, \tau, \ell, \nu'} = B_\ell (\delta_{o, \tau, s(\ell), \nu'} - \delta_{o, \tau, r(\ell), \nu'}) \quad \forall o, \tau, \ell \in \Psi^L, \nu' \leq \nu \\
-&F_{o, \tau, \ell}^{min} \leq f_{o, \tau, \ell, \nu'} \leq F_{o, \tau, \ell}^{max} \quad \forall o, \tau, \ell \in \Psi^L, \nu' \leq \nu \\
+&\label{cc_master_constraint_benders1}F_{o, \tau, \ell}^{min} \leq f_{o, \tau, \ell, \nu'} \leq F_{o, \tau, \ell}^{max} \quad \forall o, \tau, \ell \in \Psi^L, \nu' \leq \nu \\
 &F_{o, \tau, \ell}^{min} y_{t(\tau), \ell} \leq f_{o, \tau, \ell, \nu'} \leq F_{o, \tau, \ell}^{max} y_{t(\tau), \ell} \, \forall o, \tau, \ell \in \Psi^{L+}, \nu' \leq \nu \\
-&-\pi \leq \delta_{o, \tau, n, \nu'} \leq \pi \quad \forall o, \tau, n, \nu' \leq \nu \\
-&\label{master_last} \delta_{o, \tau, 0, \nu'} = 0 \quad \forall o, \tau, \nu' \leq \nu
+&\label{cc_master_constraint_benders2}-\pi \leq \delta_{o, \tau, n, \nu'} \leq \pi \quad \forall o, \tau, n, \nu' \leq \nu \\
+&\label{cc_master_last} \delta_{o, \tau, 0, \nu'} = 0 \quad \forall o, \tau, \nu' \leq \nu
 \end{align}
 
 \subsection{CC subproblem}
@@ -406,8 +406,39 @@ The subproblem can be solved directly as a MIQP using solvers such as Gurobi. Al
 \end{align}
 where parameters $\Lambda^{min}$ and $\Lambda^{max}$ can be set to exchange-specific values such as -500 €/MWh and 3000 €/MWh, respectively.
 
-\section{Case study: modified Nordic and Baltic network}
+\subsection{Benders decomposition of the CC master problem}
+
+The CC master problem in Eqs. (\ref{cc_master_obj})-(\ref{cc_master_last}) is an MILP that grows in the number of constraints at every CC iteration $\nu$ whereas the CC subproblem remains fixed in size. If multiple iterations are required for solving a medium to large problem instance (i.e. several nodes, generation units, transmission lines and time steps), then the CC master problem can become prohibitively expensive. To tackle this issue, we apply Benders decomposition to the CC master problem to convert it to a small MILP and a large LP that are solved alternatively. Even though these two problems grow also at every CC iteration, they are typically faster to solve than the original MILP as we later see in Section \ref{section_case_study}.
+
+More specifically, the complicating variables in the original CC master problem are the binary variables $y_{t, \ell}$ and $\hat{y}_{t, \ell}$ that, once fixed, render an LP problem. Thus, the Benders master problem at iteration $k$ chooses $\Phi^{L1, BM} = \{ y_{t, \ell}, \hat{y}_{t, \ell}, \forall t, \ell \in \Psi^{L+} \}$ by solving the following problem given $(blaa)$ ...
+
+\begin{align}
+&\label{benders_master_obj} \underset{\Phi^{L1, BM}, \eta}{\text{min}} \, P \sum\limits_{t} R^{-t} \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell} + \eta \\
+&\text{subject to} \nonumber \\
+&\eta - \sum\limit_{o} \sum\limit_{\tau} \sum\limit_{\nu} \Bigg[ \sum\limits_{u \in \Psi^G} \Big( A_{o, \tau, u} G_{o, \tau, u}^{max} \bar{\beta}_{o, \tau, u, \nu} + \nonumber \\
+&\mathbbm{1}_{\tau \in \Tau^{ramp}} (G^{ramp,max}_{o, \tau, u} \bar{\beta}_{o, \tau, u, \nu}^{ramp} - G^{ramp,min}_{o, \tau, u} \underline{\beta}_{o, \tau, u, \nu}^{ramp}) \Big) + \nonumber \\
+&\sum\limit_{\ell \in \Psi^{L+}} y_{t(\tau), \ell} (F_{o, \tau, \ell}^{max} \bar{\mu}_{o, \tau, \ell, \nu} - F_{o, \tau, \ell}^{min} \underline{\mu}_{o, \tau, \ell, \nu}) + \nonumber \\
+&\sum\limit_n d_{o, \tau, n, \nu}^* \sigma_{o, \tau, n, \nu} + \sum\limit_n \pi (\bar{\mu}^{va}_{o, \tau, n, \nu} + \underline{\mu}^{va}_{o, \tau, n, \nu}) + \nonumber \\
+&\sum\limit_{u \in \Psi^{G,H}} \Big( \mathbbm{1}_{\tau \in \Tau^{0}} S^0_{o, \tau, u} \phi_{o, \tau, u, \nu}^{0} + \mathbbm{1}_{\tau \in \Tau^{ramp}} I_{o, \tau, u} \phi_{o, \tau, u, \nu} + \nonumber \\
+&\mathbbm{1}_{\tau \in \Tau^{-1}} (S^{max}_{o, \tau, u} \bar{\phi}_{o, \tau, u, \nu} - S^{min}_{o, \tau, u} \underline{\phi}_{o, \tau, u, \nu}) \Big) \Bigg] - \nonumber \\
+&\sum\limit_{t} \sum\limit_{\nu} E_{t} \beta_{t}^{emission} \geq 0
+\end{align}
+
+With $y^*_{t, \ell, k}$ and $\hat{y}^*_{t, \ell, k}$ as input data, the Benders subproblem at iteration $k$ is then given by $\Phi^{L1, BS} = \{ x_{t, u}, \hat{x}_{t, u}, \forall t, \ell \in \Psi^{G+} \}$
+\begin{align}
+&\label{benders_sub_obj} \underset{\Phi^{L1}, \Omega^{M}, \theta}{\text{min}} \, P \sum\limits_{t} R^{-t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}^*_{t, \ell} \right] + \theta \\
+&\text{subject to} \nonumber \\
+&\textrm{1st level constraints (\ref{master_constraint_first}) and (\ref{master_constraint_last})} \nonumber \\
+&\textrm{3rd level constraints (\ref{cc_master_constraint1})-(\ref{cc_master_constraint_benders1}), (\ref{cc_master_constraint_benders2}), and (\ref{cc_master_last}}) \nonumber \\
+&F_{o, \tau, \ell}^{min} y^*_{t(\tau), \ell, k} \leq f_{o, \tau, \ell, \nu'} \leq F_{o, \tau, \ell}^{max} y^*_{t(\tau), \ell, k} \, \forall o, \tau, \ell \in \Psi^{L+}, \nu' \leq \nu
+\end{align}
+
+%Note that the above Benders subproblem may be parallelizable across operating conditions $o$ or time steps $t$ or $\tau$ for some problem formulations. However, in our model, the constraints (\ref{master_constraint_first}) and (\ref{cc_emission_ub}) prevent parallelization.
+
+\section{Case study: 10-year investment plan for modified Nordic and Baltic network}
 \label{section_case_study}
+
+\subsection{Data}
 
 We study what investments are required to decrease the initial \COtwo emissions of the Nordic and Baltic electricity system to a target level under uncertain generation and transmission parameters and worst-case realization of demand. More specifically, we use the Nordic and Baltic network and its generation, load, and transmission line data from \cite{Virasjoki} as a base.
 
@@ -427,19 +458,21 @@ The uncertainty budget in the subproblem ($\Lambda^w$) is 2 meaning that the mod
 Parameter 					& Value  \\ \hline
 $P$ 						& $\frac{1}{365}$ \\
 $R$							& 1.03		\\
-$C^x_{t, u}$ Gas (€/MW)		& 0.8 \cdot 10^6    \\
-$C^x_{t, u}$ CCGT (€/MW)	& 1.0 \cdot 10^6    \\
-$C^x_{t, u}$ Oil (€/MW)		& 0.8 \cdot 10^6    \\
-$C^x_{t, u}$ Biomass (€/MW)	& 3.9 \cdot 10^6    \\
-$C^x_{t, u}$ Wind (€/MW)	& 1.6 \cdot 10^6    \\
-$C^x_{t, u}$ Solar (€/MW)	& 1.8 \cdot 10^6    \\
-$C^y_{t, \ell}$ (€)			& 1.0 \cdot 10^9	\\
+$C^x_{0, u}$ Gas (€/MW)		& 0.8 \cdot 10^6    \\
+$C^x_{0, u}$ CCGT (€/MW)	& 1.0 \cdot 10^6    \\
+$C^x_{0, u}$ Oil (€/MW)		& 0.8 \cdot 10^6    \\
+$C^x_{0, u}$ Biomass (€/MW)	& 3.9 \cdot 10^6    \\
+$C^x_{0, u}$ Wind (€/MW)	& 1.6 \cdot 10^6    \\
+$C^x_{0, u}$ Solar (€/MW)	& 1.8 \cdot 10^6    \\
+$C^y_{0, \ell}$ (€)			& 1.0 \cdot 10^9	\\
 \end{tabular}
 \caption{Investment cost parameters in the case study}
 \label{table_investment_parameters}
 \end{table}
 
-We solve this case study using the Algorithm \ref{alg_algorithm}. The results are show in Table \ref{table_results}.
+\subsection{Results}
+
+We solve this case study using the Algorithm \ref{alg_algorithm} such that, for the CC master problem, we consider MILP and Benders decomposition formulations and, for the CC subproblem, we consider MILP and MIQP formulations. The results in Table \ref{table_results} show that all formulations attain the same objective value while the combination of Benders decomposition and MIQP is the fastest. The majority of time is spent at solving the last CC master problem so changing the CC subproblem formulation provides only a limited benefit.
 
 \begin{table}[htpb]
 \centering
@@ -452,20 +485,15 @@ MILP					& MIQP 				& 95915334.5162 		& 1656.18			& 3				 \\
 \label{table_results}
 \end{table}
 
-Figure \ref{fig_emissions_trajectory} shows the evolution of \COtwo emissions to the final desired level during the planning horizon and Figure \ref{fig_emissions_prices_trajectory} shows the corresponding \COtwo emission prices. Figures \ref{fig_generation_investment} and \ref{fig_transmission_investment} show the generation and transmission investments, respectively, for achieving the final emission level. Already at $t = 0$, the model builds transmission lines from Finland to Norway and Sweden and a total of 1600 MW of CCGT units in Latvia and Lithuania as well as 1100 MW of wind power in Finland. As a consequence, \COtwo emissions from $t = 0$ to $t = 4$ are below the bounds until demand increases to a high enough level at $t = 5$. To reduce \COtwo emissions to the final level, the model invests in approximately 700 MW of biomass units in Estonia and Finland. These transmission and generation investments allow replacing coal- and oil shale-fired generation with less-polluting wind power as well as gas and biomass-fired generation.
+Figure \ref{fig_emissions} shows the evolution of \COtwo emissions to the final desired level during the planning horizon and the corresponding \COtwo emission prices. Figures \ref{fig_generation_investment} and \ref{fig_transmission_investment} show the generation and transmission investments, respectively, for achieving the final emission level. Already at $t = 0$, the model builds transmission lines from Finland to Norway and Sweden and a total of 1600 MW of CCGT units in Latvia and Lithuania as well as 1100 MW of wind power in Finland. As a consequence, \COtwo emissions from $t = 0$ to $t = 4$ are below the bounds until demand increases to a high enough level at $t = 5$. To reduce \COtwo emissions to the final level, the model invests in approximately 700 MW of biomass units in Estonia.
+
+The generation mixes in Figure \ref{fig_generation_mixes} show that, compared to a solution with minimal investments and no emission constraint, the above transmission and generation investments allow replacing coal-, oil, and oil shale-fired generation with less-polluting wind power as well as gas and biomass-fired generation. In addition, new transmission lines between Finland, Norway, and Sweden enable increased levels of hydro power and nuclear generation until their maximum capacity is achieved.
 
 \begin{figure}[htpb]
   \centering
-  \includegraphics[width=\linewidth]{emissions_trajectory_milp_dc_miqp_dc.png}
-  \caption{\COtwo emissions during the planning horizon}
-  \label{fig_emissions_trajectory}
-\end{figure}
-
-\begin{figure}[htpb]
-  \centering
-  \includegraphics[width=\linewidth]{emissions_prices_trajectory_milp_dc_miqp_dc.png}
-  \caption{\COtwo emission prices during the planning horizon}
-  \label{fig_emissions_prices_trajectory}
+  \includegraphics[width=\linewidth]{emissions_milp_dc_miqp_dc.png}
+  \caption{\COtwo emissions and prices during the planning horizon}
+  \label{fig_emissions}
 \end{figure}
 
 \begin{figure}[htpb]
@@ -482,10 +510,38 @@ Figure \ref{fig_emissions_trajectory} shows the evolution of \COtwo emissions to
 	\label{fig_transmission_investment}
 \end{figure}
 
+\begin{figure}[htpb]
+	\centering
+	\includegraphics[width=\linewidth]{generation_mixes.png}
+	\caption{Generation mixes with a model without and with an emission constraint}
+	\label{fig_generation_mixes}
+\end{figure}
+
+\subsection{Cost of robustness}
+
+Next, we evaluate the out-of-sample performance of the SARO model under different load levels. As a comparison, we use stochastic programming (SP) model in which the uncertainty budget of $\Lambda^w = 2$ for load increases of $\hat{D}_{\tau, n} = 100 \textrm{ MWh}$ is randomly allocated to the nodes. Figure \ref{fig_cost_of_robustness} indicates that the SARO model is more conservative in that it has higher total costs when load change is zero or negative. However, for positive load changes, the SARO model has lower total costs than the SP model.
+
+\begin{figure}[htpb]
+	\centering
+	\includegraphics[width=\linewidth]{cost_of_robustness.png}
+	\caption{Performance of different models under different load levels}
+	\label{fig_cost_of_robustness}
+\end{figure}
+
 \section{Conclusions}
 \label{section_conclusions}
 
-foobar
+This paper proposes a SARO model for the G\&TEP problem with multiple time periods and with a emission reduction goal. In addition, we propose Benders decomposition and MIQP reformulations to solving the problem. We apply the model to a Nordic and Baltic power system and make the following conclusions:
+
+\begin{enumerate}
+	\item New transmission line investments are built to make flexible and environmentally-friendly hydro power production available in the entire system.
+	\item New wind power units are built to reduce emissions. In addition, CCGT and biomass generation units are built to displace more polluting coal and oil-shale units and to provide flexibility for offsetting the variability of wind and solar power.
+	\item The solution found by the SARO model outperforms that of a stochastic programming model on higher load levels but is more expensive on lower load levels.
+	\item Benders decomposition speeds up the solution of a large and growing MILP by splitting it up to a small MILP and a large LP.
+	\item MIQP formulation speeds up the solution of the subproblem.
+\end{enumerate}
+
+Future work could explore longer-term investment plans with various scenarios on the electrification of transportation as well as deployment of emerging technologies such as storage. Moreover, the model could be extended to cover larger power systems such as the entire Europe to find a more globally optimal investment plan that takes into account the pool of resources and spatio-temporal correlations of VRES generation in a larger geographical area. Also, considering additional sources of uncertainty such as transmission and generation outages could lead to more robust investment plans for renewable-rich systems. Finally, the growing large LP in the Benders subproblem remains a bottleneck so exploring the possibilities to further decompose it could lead to significant improvements in solution times.
 
 \bibliographystyle{IEEEtran}
 \bibliography{IEEEabrv,references}

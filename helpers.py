@@ -26,6 +26,9 @@ from common_data import (
     unit_to_generation_type,
     G_emissions,
     maximum_candidate_unit_capacity_by_type,
+    C_x,
+    C_y,
+    annualizer,
 )
 
 
@@ -54,6 +57,18 @@ def get_installed_capacity(o, t, u, x):
         capacity = G_max[o, t, u]
 
     return np.maximum(capacity, 0.0)
+
+
+def get_availability_rate(o, t, u):
+    return availability_rates[o, t, u]
+
+
+def get_ramp_rate(o, t, u):
+    return (
+        1.0
+        if unit_to_generation_type[u] in (wind_unit_idx, pv_unit_idx)
+        else ramp_rates[o, t, u]
+    )
 
 
 def get_effective_capacity(o, t, u, x):
@@ -160,6 +175,43 @@ def concatenate_to_uncertain_variables_array(current_d, new_d):
     current_d = np.concatenate((current_d, new_column), axis=-1)
 
     return current_d
+
+
+def get_investment_cost(xhat, yhat):
+    # Compute total investment cost for fixed generation and transmission investment decisions.
+    return (
+        sum(
+            sum(C_x[t, u] * xhat[t, u] for u in candidate_units)
+            + sum(C_y[t, l] * yhat[t, l] for l in candidate_lines)
+            for t in years
+        )
+        / annualizer
+    )
+
+
+def get_transmission_investment_cost(yhat):
+    # Compute total investment cost for fixed transmission investment decisions.
+    return (
+        sum(sum(C_y[t, l] * yhat[t, l] for l in candidate_lines) for t in years)
+        / annualizer
+    )
+
+
+def get_initial_transmission_investments():
+    # Get initial transmission line investments.
+    initial_yhat = dict()
+    initial_y = dict()
+
+    for t in years:
+        for l in candidate_lines:
+            if t == 0:
+                initial_yhat[t, l] = 1.0
+            else:
+                initial_yhat[t, l] = 0.0
+
+            initial_y[t, l] = 1.0
+
+    return initial_yhat, initial_y
 
 
 def read_investment_and_availability_decisions(

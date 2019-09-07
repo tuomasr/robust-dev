@@ -12,25 +12,37 @@ np.random.seed(13)
 
 # Solver method for master problem and subproblem.
 # -1 = automatic
+# 0 = Simplex
+# 1 = Dual simplex
 # 2 = Barrier + Crossover
 # 3 = concurrent
 # 4 = deterministic concurrent (runs out of memory for bigger instances).
-master_method = 3
+master_method = -1
 subproblem_method = -1
 
 # Custom configuration for both problems.
-enable_custom_configuration = False
+enable_custom_configuration_master_problem = False
+enable_custom_configuration_subproblem = False
 
 GRB_PARAMS = [
     # ("MIPGap", 0),
-    ("FeasibilityTol", 1e-9),
+    # ("FeasibilityTol", 1e-9),
     # ("IntFeasTol", 1e-9),
     # ("MarkowitzTol", 1e-4),
     # ("OptimalityTol", 1e-9),
     # ('MIPFocus', 2),
     # ('Presolve', 0),
     # ('Cuts', 0),
-    # ('Aggregate', 0)]
+    # ('Aggregate', 0),
+    # ("ScaleFlag", 3),
+    # ("ObjScale", 0),
+    ("Threads", 8),
+    #("BarConvTol", 1e-3),
+    #("FeasibilityTol", 1e-3),
+    #("IntFeasTol", 1e-3),
+    # ("MarkowitzTol", 1e-3),
+    #("MIPGap", 1e-3),
+    #("OptimalityTol", 1e-3),
 ]
 
 # Operation data taken from
@@ -45,7 +57,7 @@ num_scenarios = 3
 scenarios = list(range(num_scenarios))
 
 # Years and hours.
-num_years = 2
+num_years = 10
 num_hours_per_year = 24
 num_hours = num_years * num_hours_per_year
 
@@ -101,8 +113,11 @@ for y in years:
         h1 = y * num_hours_per_year
         h2 = (y + 1) * num_hours_per_year
 
+        # stoch = np.random.uniform(size=num_real_nodes)
+        # stoch = kakka / np.sum(stoch) * uncertainty_demand_increase_factor * load_growth_factor
+
         uncertainty_demand_increase[o, h1:h2, :] *= load_growth_factor
-        load[o, h1:h2, :] = load_slice * load_growth_factor
+        load[o, h1:h2, :] = load_slice * load_growth_factor # + stoch
 
 # Units.
 generation_capacities = np.genfromtxt(
@@ -274,12 +289,12 @@ unit_idx = len(existing_units)
 
 generate_candidate_units = True
 maximum_candidate_unit_capacity_by_type = {
-    1: 10000.0,
-    2: 10000.0,
-    3: 10000.0,
+    1: 100000.0,
+    2: 100000.0,
+    3: 100000.0,
     4: 1000.0,  # Biomass potential.
-    8: 10000.0,
-    9: 10000.0,
+    8: 100000.0,
+    9: 100000.0,
 }
 
 if generate_candidate_units:

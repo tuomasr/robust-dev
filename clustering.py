@@ -18,6 +18,12 @@ N_CLUSTERS = 3
 # Allows averaging consecutive hours to reduce the dimension of data points to cluster.
 NUM_HOURS_TO_AVERAGE = 2
 
+# 1: 0.0476
+# 2: 0.0471
+# 3: 0.049
+# 4: 0.057
+# 8: 0.045
+
 
 def estimate_representative_days():
     """Run the algorithm to generate representative days."""
@@ -85,11 +91,20 @@ def estimate_representative_days():
         (datetime.datetime(2014, 1, 1) + datetime.timedelta(int(day))).isoweekday()
         for day in days
     ]
-    approx_months = [int(day / 30) + 1 for day in days]
+    months = [
+        (datetime.datetime(2014, 1, 1) + datetime.timedelta(int(day))).month
+        for day in days
+    ]
 
     print("Representative days are the indices:", days)
-    print("The respective weekdays are:", weekdays)
-    print("They are approximately in these months:", approx_months)
+    print("The respective ISO weekdays are:", weekdays)
+    print("They are in these months:", months)
+
+    weight_diff = np.mean(
+        np.abs(np.array([w - 1 / float(N_CLUSTERS) for w in weights]))
+    )
+
+    print("Diff to ideal scenario weight:", weight_diff)
 
     np.save("representative_days.npy", np.array(days))
     np.save("scenario_weights.npy", np.array(weights))

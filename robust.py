@@ -6,6 +6,8 @@ from __future__ import division
 from __future__ import print_function
 
 import argparse
+import os
+import pickle
 import sys
 
 import numpy as np
@@ -22,6 +24,7 @@ from common_data import (
     storage_change_lb,
     storage_change_ub,
     ac_lines,
+    lines,
 )
 from helpers import (
     compute_objective_gap,
@@ -30,7 +33,11 @@ from helpers import (
     get_maximum_ramp,
     MyLogger,
     get_emissions,
+    get_investment_cost,
 )
+from master_problem_dc import CCMasterProblem
+from master_problem_benders_dc import CCMasterProblemBenders
+from master_problem_benders_dc_dual import CCMasterProblemDualBenders
 from plotting import create_investment_plots, create_emission_plots
 
 # Configure the algorithm for solving the robust optimization problem.
@@ -41,7 +48,7 @@ master_problem_timer = Timer()
 subproblem_timer = Timer()
 
 # Threshold for algorithm convergence.
-EPSILON = 1e-8  # From Minguez et al. (2016)
+EPSILON = 1e-6  # From Minguez et al. (2016)
 
 # Numerical precision issues can cause LB to become higher than UB in some cases.
 # This threshold allows some slack but an error is raised if the threshold is exceeded.
@@ -73,31 +80,29 @@ def print_solution_quality(problem, problem_name):
     print(separator)
 
 
-def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
+def run_robust_optimization(master_problem_algorithm, subproblem_algorithm, output_dir):
     """Solve the robust optimization problem.
 
     Use a column-and-constraint (CC) algorithm at the top-level.
     """
+    # Create output directory.
+    os.makedirs(output_dir)
+
     converged = False
 
     if master_problem_algorithm == "benders_dc":
-        from master_problem_benders_dc import (
-            solve_master_problem,
-            get_investment_and_availability_decisions,
-            get_investment_cost,
-            master_problem,
-        )
+        master_problem_class = CCMasterProblemBenders
+    elif master_problem_algorithm == "dual_benders_dc":
+        master_problem_class = CCMasterProblemDualBenders
     elif master_problem_algorithm == "milp_dc":
-        from master_problem_dc import (
-            solve_master_problem,
-            get_investment_and_availability_decisions,
-            get_investment_cost,
-            master_problem,
-        )
+        master_problem_class = CCMasterProblem
+
+    master_problem = master_problem_class()
 
     # Import an implementation depending on the subproblem algorithm choice.
-    if subproblem_algorithm == "miqp_dc":
-        from subproblem_miqp import (
+    if subproblem_algorithm in ("miqp_dc", "milp_dc"):
+        subproblem_milp = subproblem_algorithm == "milp_dc"
+        from subproblem import (
             solve_subproblem,
             get_uncertain_variables,
             get_uncertainty_decisions,
@@ -113,7 +118,7 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
         # Solve the master problem. The context manager measures solution time.
         with master_problem_timer as t:
             print("Solving master problem.")
-            master_problem_objval, g, s = solve_master_problem(iteration, d)
+            master_problem_objval, g, s, f = master_problem.solve(iteration, d)
 
         # Update lower bound to the master problem objective value.
         LB = master_problem_objval
@@ -122,12 +127,14 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
         initial = iteration == 0
 
         # Obtain investment and availability decisions from the master problem solution.
-        xhat, yhat, x, y = get_investment_and_availability_decisions(initial)
+        xhat, yhat, x, y = master_problem.get_investment_and_availability_decisions(
+            initial
+        )
 
         # Solve the subproblem with the newly updated availability decisions.
         with subproblem_timer as t:
             print("Solving subproblem.")
-            subproblem_objval, emission_prices = solve_subproblem(x, y)
+            subproblem_objval, emission_prices = solve_subproblem(x, y, subproblem_milp)
 
         # Update the algorithm upper bound and compute new a gap.
         UB = get_investment_cost(xhat, yhat) + subproblem_objval
@@ -161,6 +168,29 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
         )
     else:
         print("Did not converge. Gap: %s, UB-LB: %s" % (GAP, UB - LB))
+
+    if converged:
+        # Save investment decisions to an output file.
+        investment_decisions = {"x": x, "xhat": xhat, "y": y, "yhat": yhat}
+        with open(os.path.join(output_dir, "investment.pickle"), "wb") as file_:
+            pickle.dump(investment_decisions, file_)
+
+        # Save operation decisions to an output file.
+        gg = dict()
+        ff = dict()
+        for o in scenarios:
+            for t in hours:
+                for u in units:
+                    gg[o, t, u] = g[o, t, u, iteration].x
+
+                for l in lines:
+                    ff[o, t, l] = f[o, t, l, iteration].x
+
+        operation_decisions = {"g": gg, "f": ff}
+        with open(
+            os.path.join(output_dir, "operation_decisions.pickle"), "wb"
+        ) as file_:
+            pickle.dump(operation_decisions, file_)
 
     # Report costs.
     print(separator)
@@ -226,7 +256,7 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
 
     if plot_investments:
         create_investment_plots(
-            xhat, yhat, master_problem_algorithm, subproblem_algorithm
+            xhat, yhat, master_problem_algorithm, subproblem_algorithm, output_dir
         )
 
     # Check if ramping constraints were active.
@@ -291,8 +321,17 @@ def run_robust_optimization(master_problem_algorithm, subproblem_algorithm):
 
     if plot_emissions:
         emissions = get_emissions(g)
+
+        emission_data = {"emissions": emissions, "emission_prices": emission_prices}
+        with open(os.path.join(output_dir, "emission_data.pickle"), "wb") as file_:
+            pickle.dump(emission_data, file_)
+
         create_emission_plots(
-            emissions, emission_prices, master_problem_algorithm, subproblem_algorithm
+            emissions,
+            emission_prices,
+            master_problem_algorithm,
+            subproblem_algorithm,
+            output_dir,
         )
 
 
@@ -300,15 +339,22 @@ def main():
     """Run robust optimization."""
     parser = argparse.ArgumentParser(description="Run robust optimization.")
     parser.add_argument(
-        "master_problem_algorithm", type=str, choices=("benders_dc", "milp_dc")
+        "master_problem_algorithm",
+        type=str,
+        choices=("benders_dc", "dual_benders_dc", "milp_dc"),
     )
-    parser.add_argument("subproblem_algorithm", type=str, choices=("miqp_dc"))
+    parser.add_argument(
+        "subproblem_algorithm", type=str, choices=("miqp_dc", "milp_dc")
+    )
+    parser.add_argument("output_dir", type=str)
 
     args = parser.parse_args()
 
     sys.stdout = MyLogger(args.master_problem_algorithm, args.subproblem_algorithm)
 
-    run_robust_optimization(args.master_problem_algorithm, args.subproblem_algorithm)
+    run_robust_optimization(
+        args.master_problem_algorithm, args.subproblem_algorithm, args.output_dir
+    )
 
 
 if __name__ == "__main__":

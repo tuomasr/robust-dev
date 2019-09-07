@@ -1,4 +1,4 @@
-# Subproblem MIQP formulation.
+# Subproblem MILP/MIQP formulation.
 # Note: This assumes that all candidates lines are DC.
 
 from __future__ import absolute_import
@@ -37,7 +37,7 @@ from common_data import (
     G_emissions,
     discount_factor,
     subproblem_method,
-    enable_custom_configuration,
+    enable_custom_configuration_subproblem,
     GRB_PARAMS,
     uncertainty_budget,
     uncertainty_demand_increase,
@@ -65,7 +65,7 @@ demand_increase = uncertainty_demand_increase
 m = Model("subproblem")
 m.Params.Method = subproblem_method
 
-if enable_custom_configuration:
+if enable_custom_configuration_subproblem:
     for parameter, value in GRB_PARAMS:
         m.setParam(parameter, value)
 
@@ -164,15 +164,59 @@ eta = m.addVars(scenarios, hours, name="dual_reference_node_angle", lb=lb2, ub=u
 # Balance equation dual (i.e. price).
 lambda_ = m.addVars(scenarios, hours, nodes, name="dual_balance", lb=-K, ub=K)
 
+linearization_variables_created = False
+z, lambda_tilde = None, None
 
-def get_objective(x, y):
+
+def get_or_create_linearization_variables():
+    # Variables for linearizing bilinear terms lambda_[o, t, n] * w[n].
+    global linearization_variables_created, z, lambda_tilde
+    if not linearization_variables_created:
+        z = m.addVars(
+            scenarios,
+            hours,
+            real_nodes,
+            name="linearization_z",
+            lb=-GRB.INFINITY,
+            ub=GRB.INFINITY,
+        )
+        lambda_tilde = m.addVars(
+            scenarios,
+            hours,
+            real_nodes,
+            name="linearization_lambda_tilde",
+            lb=-GRB.INFINITY,
+            ub=GRB.INFINITY,
+        )
+        linearization_variables_created = True
+
+    return z, lambda_tilde
+
+
+def get_objective(x, y, milp):
     # Define subproblem objective function for fixed x and y (unit and line investments).
-    obj = sum(
-        sum(
-            w[n] * demand_increase[o, t, n] * lambda_[o, t, n]
-            + lambda_[o, t, n] * nominal_demand[o, t, n]
+    if milp:
+        z, _ = get_or_create_linearization_variables()
+        term1 = sum(
+            (
+                z[o, t, n] * demand_increase[o, t, n] + lambda_[o, t, n] * nominal_demand[o, t, n]
+            )
+            for o in scenarios
+            for t in hours
             for n in real_nodes
         )
+    else:
+        term1 = sum(
+            (
+                w[n] * demand_increase[o, t, n] * lambda_[o, t, n]
+                + lambda_[o, t, n] * nominal_demand[o, t, n]
+            )
+            for o in scenarios
+            for t in hours
+            for n in real_nodes
+        )
+
+    obj = term1 + sum(
         - sum(
             beta_bar[o, t, u] * get_effective_capacity(o, t, u, x)
             for u in units
@@ -235,9 +279,9 @@ def get_objective(x, y):
     return obj
 
 
-def set_subproblem_objective(x, y):
+def set_subproblem_objective(x, y, milp):
     # Set objective function for the subproblem for fixed x and y (unit and line investments).
-    obj = get_objective(x, y)
+    obj = get_objective(x, y, milp)
 
     m.setObjective(obj, GRB.MAXIMIZE)
 
@@ -265,10 +309,31 @@ m.addConstrs(
     name="storage_dual_constraint",
 )
 
+# Flow constraints for existing AC lines.
+m.addConstrs(
+    (
+        -sum(
+            (B[l] * phi[o, t, l] if l in existing_lines and l in ac_lines else 0.0)
+            for l in get_lines_starting(n)
+        )
+        + sum(
+            (B[l] * phi[o, t, l] if l in existing_lines and l in ac_lines else 0.0)
+            for l in get_lines_ending(n)
+        )
+        - mu_angle_bar[o, t, n]
+        + mu_angle_underline[o, t, n]
+        + (eta[o, t] if n == ref_node else 0.0)
+        == 0.0
+        for o in scenarios
+        for t in hours
+        for n in ac_nodes
+    ),
+    name="voltage_angle_dual_constraint",
+)
 
-def set_dependent_constraints(x, y):
+
+def set_dependent_constraints(x, y, milp):
     constraint_names = [
-        "voltage_angle_dual_constraint",
         "flow_dual_constraint",
         "generation_dual_constraint",
     ]
@@ -281,27 +346,6 @@ def set_dependent_constraints(x, y):
         if existing_constraints:
             m.remove(existing_constraints)
             m.update()
-
-    m.addConstrs(
-        (
-            -sum(
-                (B[l] * phi[o, t, l] if l in existing_lines and l in ac_lines else 0.0)
-                for l in get_lines_starting(n)
-            )
-            + sum(
-                (B[l] * phi[o, t, l] if l in existing_lines and l in ac_lines else 0.0)
-                for l in get_lines_ending(n)
-            )
-            - mu_angle_bar[o, t, n]
-            + mu_angle_underline[o, t, n]
-            + (eta[o, t] if n == ref_node else 0.0)
-            == 0.0
-            for o in scenarios
-            for t in hours
-            for n in ac_nodes
-        ),
-        name="voltage_angle_dual_constraint",
-    )
 
     m.addConstrs(
         (
@@ -341,10 +385,64 @@ def set_dependent_constraints(x, y):
         name="generation_dual_constraint",
     )
 
+    if milp:
+        z, lambda_tilde = get_or_create_linearization_variables()
 
-def solve_subproblem(x, y):
-    set_dependent_constraints(x, y)
-    set_subproblem_objective(x, y)
+        # Constraints for linearizing lambda_[n, o] * d[n].
+        m.addConstrs(
+            (
+                z[o, t, n] - lambda_[o, t, n] + lambda_tilde[o, t, n] == 0.0
+                for o in scenarios
+                for t in hours
+                for n in real_nodes
+            ),
+            name="linearization_z_definition",
+        )
+
+        m.addConstrs(
+            (
+                w[n] * (-K) - z[o, t, n] <= 0.0
+                for o in scenarios
+                for t in hours
+                for n in real_nodes
+            ),
+            name="linearization_z_lb",
+        )
+
+        m.addConstrs(
+            (
+                z[o, t, n] - w[n] * K <= 0.0
+                for o in scenarios
+                for t in hours
+                for n in real_nodes
+            ),
+            name="linearization_z_ub",
+        )
+
+        m.addConstrs(
+            (
+                (1.0 - w[n]) * (-K) - lambda_tilde[o, t, n] <= 0.0
+                for o in scenarios
+                for t in hours
+                for n in real_nodes
+            ),
+            name="lambda_tilde_lb",
+        )
+
+        m.addConstrs(
+            (
+                lambda_tilde[o, t, n] - (1.0 - w[n]) * K <= 0.0
+                for o in scenarios
+                for t in hours
+                for n in real_nodes
+            ),
+            name="lambda_tilde_ub",
+        )
+
+
+def solve_subproblem(x, y, milp):
+    set_dependent_constraints(x, y, milp)
+    set_subproblem_objective(x, y, milp)
     m.optimize()
 
     prices = []
